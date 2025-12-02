@@ -1,0 +1,128 @@
+# ===============================
+# CONFIG FILE
+# ===============================
+
+experiments:
+  - name: "agricola"
+    domain_file: "Agricola/domain.pddl"
+    problems_dir: "Agricola/problems/"
+    repeat: 1
+
+  - name: "rovers"
+    domain_file: "Rovers/StripsRover.pddl"
+    problems_dir: "Rovers/"
+    repeat: 1
+
+  - name: "driverlog"
+    domain_file: "DriverLog/domain.pddl"
+    problems_dir: "DriverLog/problems/"
+    repeat: 2
+
+
+# --------------------------------
+# PIPELINE OPTIONS
+# --------------------------------
+pipeline_options:
+  run_create_plans: false
+  run_remove_duplicates: true
+  run_event_log: true
+  run_cleaning: true
+  run_grounding: true
+  run_compound: true
+  run_minerful: true
+
+
+# --------------------------------
+# PLANNING PARAMETERS (NEW)
+# --------------------------------
+planning:
+  run_alias: true
+  run_non_alias: true
+  time_limit_alias: "800s"
+  time_limit_non_alias: 800
+  max_workers: 6
+
+  # Lista completa dei comandi configurabili:
+  commands:
+    - "--search astar(hmax())"
+    - "--search astar(lmcut())"
+    - "--search eager_greedy([ff()])"
+    - "--search eager_greedy([add()])"
+    - "--search eager_wastar([add()],w=5)"
+    - "--search eager_wastar([ff()],w=5)"
+    - "--search lazy_greedy([ff()])"
+    - "--search lazy_greedy([cg()])"
+    - "--search lazy_wastar([ff()],w=5)"
+    - "--search lazy_wastar([cg()],w=5)"
+    - "--search ehc(ff())"
+    - "--alias lama"
+    - "--alias seq-sat-lama-2011"
+    - "--alias seq-sat-fdss-2023"
+    - "--alias seq-sat-fdss-2018"
+    - "--alias seq-sat-fd-autotune-1"
+    - "--alias seq-sat-fd-autotune-2"
+
+
+# --------------------------------
+# GROUNDING
+# --------------------------------
+grounding:
+  enabled: true
+  columns: ["agent", "location"]
+
+
+# --------------------------------
+# COMPOUND
+# --------------------------------
+compound:
+  enabled: true
+  columns: ["agent", "action"]
+
+
+# --------------------------------
+# CLEANING
+# --------------------------------
+cleaning:
+  enabled: true
+  method: "standard"
+
+
+# --------------------------------
+# MINERFUL
+# --------------------------------
+minerful:
+  enabled: true
+  use_classifier: false
+  min_support: 0.1
+  max_support: 1.0
+  constraint_types: ["response", "precedence"]
+
+
+# --------------------------------
+# INPUT OVERRIDE
+# --------------------------------
+input_override:
+  plans_dir: "plans/"
+  event_log_csv: null
+  event_log_xes: null
+  cleaned_csv: null
+  cleaned_xes: null
+  grounded_csv: null
+  grounded_xes: null
+  compound_csv: null
+  compound_xes: null
+
+
+# --------------------------------
+# OUTPUT DIRS
+# --------------------------------
+output_dirs:
+  base_dir: "results/"
+
+
+# --------------------------------
+# FAST DOWNWARD
+# --------------------------------
+fast_downward:
+  path: "/home/chiara_maccabruno/progetto/downward/fast-downward.py"
+  timeout_seconds: 300
