@@ -2,7 +2,7 @@ import os
 import hashlib
 from collections import defaultdict
 
-def removeDuplicatePlans(plans_dir, simulate=False):
+def removeDuplicatePlans(plans_dir):
     hash_map = defaultdict(list)
 
     # Compute the SHA-256 hash of a file to detect duplicates
@@ -44,13 +44,8 @@ def removeDuplicatePlans(plans_dir, simulate=False):
             print(f"  Keeping: {keep}")
             for f in duplicates_to_delete:
                 print(f"  Deleting: {f}")
-                if not simulate:
-                    os.remove(f)
-                    total_deleted += 1
+                os.remove(f)
+                total_deleted += 1
             print()
 
-        if simulate:
-            print("\n SIMULATION MODE active — no files were deleted.")
-            print(" Set `simulate = False` to actually remove duplicates.\n")
-        else:
-            print(f" Deleted {total_deleted} duplicate files.\n")
+        print(f" Deleted {total_deleted} duplicate files.\n")

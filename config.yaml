@@ -1,7 +1,3 @@
-# ===============================
-# CONFIG FILE
-# ===============================
-
 experiments:
   - name: "agricola"
     domain_file: "Agricola/domain.pddl"
@@ -20,20 +16,20 @@ experiments:
 
 
 # --------------------------------
-# PIPELINE OPTIONS
+# per eseguire fasi
 # --------------------------------
 pipeline_options:
   run_create_plans: false
-  run_remove_duplicates: true
+  run_remove_duplicates: false
   run_event_log: true
-  run_cleaning: true
-  run_grounding: true
-  run_compound: true
-  run_minerful: true
+  run_cleaning: false
+  run_grounding: false
+  run_compound: false
+  run_minerful: false
 
 
 # --------------------------------
-# PLANNING PARAMETERS (NEW)
+# parametri per creazione piani
 # --------------------------------
 planning:
   run_alias: true
@@ -61,6 +57,155 @@ planning:
     - "--alias seq-sat-fdss-2018"
     - "--alias seq-sat-fd-autotune-1"
     - "--alias seq-sat-fd-autotune-2"
+
+# --------------------------------
+
+eventlog:
+  # Timestamp iniziale del primo evento 
+  start_timestamp: "2025-01-01T00:00:00"
+  # Incremento tra gli eventi in secondi
+  increment_seconds: 1
+  # Separatore CSV (può essere ; o ,)
+  csv_delimiter: ";"
+  column_names:
+    case_id: "case_id"      # default 
+    event_id: "event_id"    # default 
+    timestamp: "timestamp"  # default 
+    extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
+      - "activity"
+      - "actor"
+      - "store"
+      - "waypoint_1"
+      - "waypoint_2"
+      - "waypoint_3"
+      - "objective"
+    #  - "location"
+    #  - "priority"
+
+  # File di output (se l'utente vuole specificarlo)
+  output_csv: null        # es. "results/event_log.csv"
+  output_xes: null        # es. "results/event_log.xes"
+
+  activity_mapping:
+
+    # -------------------------
+    # DOMAIN: ROVERS
+    # -------------------------
+    rovers:
+      navigate:
+        fields: ["actor", "waypoint_1", "waypoint_2"]
+
+      sample_soil:
+        fields: ["actor", "store", "waypoint_1"]
+        static: { object_type: "soil" }
+
+      sample_rock:
+        fields: ["actor", "store", "waypoint_1"]
+        static: { object_type: "rock" }
+
+      drop:
+        fields: ["actor", "store"]
+
+      calibrate:
+        fields: ["actor", "_", "objective", "waypoint_1"]
+
+      take_image:
+        fields: ["actor", "waypoint_1", "objective", "_", "_"]
+
+      communicate_soil_data:
+        fields: ["actor", "_", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+        static: { object_type: "soil" }
+
+      communicate_rock_data:
+        fields: ["actor", "_", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+        static: { object_type: "rock" }
+
+      communicate_image_data:
+        fields: ["actor", "_", "objective", "mode", "waypoint_1", "waypoint_2", "waypoint_3"]
+        static: { object_type: "image" }
+
+    # -------------------------
+    # DOMAIN: AGRICOLA
+    # -------------------------
+    agricola:
+      take_grain:
+        fields: ["worker", "worker_next", "_", "round", "vegetable"]
+
+      take_food:
+        fields: ["worker", "worker_next", "_", "round", "vegetable"]
+
+      plow_field:
+        fields: ["worker", "worker_next", "_", "round"]
+
+      sow:
+        fields: ["worker", "worker_next", "_", "round", "vegetable"]
+
+      collect_resource:
+        fields: ["worker", "worker_next", "_", "round", "_", "resource"]
+
+      build_room:
+        fields: ["worker", "worker_next"]
+
+      improve_home:
+        fields: ["worker", "worker_next"]
+
+      family_growth:
+        fields: ["worker", "worker_next"]
+
+      collect_animal:
+        fields: ["animal", "_", "worker", "worker_next", "_", "round"]
+
+      collect_cook_animal:
+        fields: ["animal", "_", "worker", "worker_next", "_", "round"]
+
+      ag__harvest_collecting_veg:
+        fields: ["round", "_", "vegetable"]
+
+      ag__harvest_feed:
+        fields: ["round"]
+
+      ag__harvest_breeding_animal:
+        fields: ["round", "_", "animal"]
+
+      ag__harvest_collect_end:
+        fields: ["round"]
+
+      ag__harvest_breed_end:
+        fields: ["round"]
+
+      ag__finish_round_backhome:
+        fields: ["round"]
+
+      ag__finish_round_renew:
+        fields: ["round"]
+
+      ag__advance_round_normal:
+        fields: ["round"]
+
+      ag__finish_stage:
+        fields: ["_", "_", "round"]
+
+    # -------------------------
+    # DOMAIN: DRIVERLOG
+    # -------------------------
+    driverlog:
+      load-truck:
+        fields: ["object", "truck", "loc_from"]
+
+      unload-truck:
+        fields: ["object", "truck", "loc_to"]
+
+      board-truck:
+        fields: ["driver", "truck", "loc_from"]
+
+      disembark-truck:
+        fields: ["driver", "truck", "loc_to"]
+
+      drive-truck:
+        fields: ["truck", "loc_from", "loc_to", "driver"]
+
+      walk:
+        fields: ["driver", "loc_from", "loc_to"]
 
 
 # --------------------------------
@@ -102,7 +247,7 @@ minerful:
 # INPUT OVERRIDE
 # --------------------------------
 input_override:
-  plans_dir: "plans/"
+  plans_dir: "results/rovers/run_1/plans" 
   event_log_csv: null
   event_log_xes: null
   cleaned_csv: null

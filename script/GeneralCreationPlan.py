@@ -142,35 +142,19 @@ def createPlans(
     domain,
     problems_dir,
     output_dir,
-    fast_downward_path="fast-downward.py",
-    commands=None,
-    run_alias=True,
-    run_non_alias=True,
-    time_limit_alias="800s",
-    time_limit_non_alias=800,
-    max_workers=6
+    fast_downward_path,
+    planning_conf,
 ):
+    commands = planning_conf["commands"]
+    max_workers = planning_conf["max_workers"]
+    run_alias = planning_conf["run_alias"]
+    run_non_alias = planning_conf["run_non_alias"]
+    time_limit_alias = planning_conf["time_limit_alias"]
+    time_limit_non_alias = planning_conf["time_limit_non_alias"]
 
-    if commands is None:
-        commands = [
-            '--search astar(hmax())',
-            '--search astar(lmcut())',
-            '--search eager_greedy([ff()])',
-            '--search eager_greedy([add()])',
-            '--search eager_wastar([add()],w=5)',
-            '--search eager_wastar([ff()],w=5)',
-            '--search lazy_greedy([ff()])',
-            '--search lazy_greedy([cg()])',
-            '--search lazy_wastar([ff()],w=5)',
-            '--search lazy_wastar([cg()],w=5)',
-            '--search ehc(ff())',
-            '--alias lama',
-            '--alias seq-sat-lama-2011',
-            '--alias seq-sat-fdss-2023',
-            '--alias seq-sat-fdss-2018',
-            '--alias seq-sat-fd-autotune-1',
-            '--alias seq-sat-fd-autotune-2',
-        ]
+    if "commands" not in planning_conf:
+        raise ValueError("Missing 'commands' in planning configuration!")
+    commands = planning_conf["commands"]
 
     os.makedirs(output_dir, exist_ok=True)
 

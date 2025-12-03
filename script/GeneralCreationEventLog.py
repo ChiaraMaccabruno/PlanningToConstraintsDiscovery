@@ -11,6 +11,28 @@ from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 def is_generic_name(name):
     return (len(name) <= 2 and name.isalpha()) or re.match(r"(obj|var|p)\d*", name)
 
+def apply_activity_mapping(activity, data, activity_mapping):
+    mapped = {}
+
+    if activity not in activity_mapping:
+        return mapped
+
+    fields = activity_mapping[activity].get("fields", [])
+    static_fields = activity_mapping[activity].get("static", {})
+
+    values = list(data.values())[1:]  # esclude "activity"
+
+    for field_name, value in zip(fields, values):
+        if field_name != "_":       # "_" significa ignorare quel parametro
+            mapped[field_name] = value
+
+    # aggiunge campi statici
+    for k, v in static_fields.items():
+        mapped[k] = v
+
+    return mapped
+
+
 # Parse PDDL domain to extract actions and their parameters
 def parse_domain(domain_file):
     with open(domain_file, "r", encoding="utf-8") as f:
@@ -85,7 +107,26 @@ def parse_plan_line(line, actions_def):
 
 
 
-def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes):
+def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes, eventlog_conf=None):
+    if eventlog_conf is None:
+        eventlog_conf = {}
+    
+
+    start_timestamp = eventlog_conf["start_timestamp"]
+    increment_seconds = eventlog_conf["increment_seconds"]
+    csv_delimiter = eventlog_conf["csv_delimiter"]
+
+    column_names_conf = eventlog_conf["column_names"]
+    case_col = column_names_conf["case_id"]
+    timestamp_col = column_names_conf["timestamp"]
+    event_id_col = column_names_conf["event_id"]
+    activity_col = "activity"
+    extra_columns = [c for c in column_names_conf.get("extra_columns", []) if c != "activity"]
+    activity_mapping = eventlog_conf.get("activity_mapping", {})
+
+    domain_name = os.path.basename(os.path.dirname(domain_file)).lower()
+
+
     print("\nParsing domain...")
     actions_def = parse_domain(domain_file)
 
@@ -94,7 +135,7 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes):
         print(f"  - {a}: {p}")
 
     rows = []
-    timestamp = datetime(2025, 1, 1)
+    timestamp = datetime.fromisoformat(start_timestamp)
     event_id, case_id = 1, 1
 
     print("\nReading plans...")
@@ -115,15 +156,37 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes):
                         continue
 
                     data = parse_plan_line(line, actions_def)
-                    data.update({
-                        "case_id": f"plan_{case_id}",
-                        "event_id": event_id,
-                        "timestamp": timestamp.isoformat()
-                    })
 
-                    rows.append(data)
+                    if not extra_columns or extra_columns == [activity_col]:
+                        data.update({
+                            "case_id": f"plan_{case_id}",
+                            "event_id": event_id,
+                            "timestamp": timestamp.isoformat()
+                        })
+                        rows.append(data)
+                    else:
+                        row = {
+                            case_col: f"plan_{case_id}",
+                            event_id_col: event_id,
+                            timestamp_col: timestamp.isoformat(),
+                        }
+
+                        row[activity_col] = data["activity"]
+
+
+                        mapped = apply_activity_mapping(data["activity"], data, activity_mapping.get(domain_name, {}))
+
+                        for col in extra_columns:
+                            if col == activity_col:
+                                continue
+                            row[col] = mapped.get(col, "")
+
+
+    
+                        rows.append(row)
+
                     event_id += 1
-                    timestamp += timedelta(seconds=1)
+                    timestamp += timedelta(seconds=increment_seconds)
 
             case_id += 1
 
@@ -131,6 +194,8 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes):
             all_keys = set().union(*rows)
 
             for key in list(all_keys):
+                if key == activity_col:
+                    continue
                 base = key
                 numbered_1 = f"{base}_1"
 
@@ -142,13 +207,23 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes):
                             del row[base]
 
 
-    order = ["case_id", "event_id", "timestamp", "activity"]
-    other_cols = sorted(set().union(*rows) - set(order))
+    if not extra_columns or extra_columns == [activity_col]:
+        order = ["case_id", "event_id", "timestamp", "activity"]
+    else:
+        order = [case_col, event_id_col, timestamp_col, activity_col] + extra_columns
+    all_cols = set()
+    for r in rows:
+        all_cols.update(r.keys())
+
+    # Rimuovi le colonne già presenti in `order` e prendi un ordine stabile (sorted)
+    other_cols = sorted([c for c in all_cols if c not in order])
+
+    # Fieldnames finali per il CSV
     fieldnames = order + other_cols
 
     print("\nWriting CSV...")
     with open(output_csv, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=";")
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=csv_delimiter)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -175,19 +250,13 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes):
     print(f"XES generated: {output_xes}")
     
 
-def createEventLog(domainPath, planDirectory, csvOutput, xesOutput):
+def createEventLog(domainPath, planDirectory, csvOutput, xesOutput, eventlog_conf=None):
     return generate_event_log(
         domain_file=domainPath,
         root_plans_dir=planDirectory,
         output_csv=csvOutput,
-        output_xes=xesOutput
+        output_xes=xesOutput,
+        eventlog_conf=eventlog_conf
     )
 
 
-if __name__ == "__main__":
-    generate_event_log(
-        domain_file="DriverLog/driverlog.pddl",
-        root_plans_dir="DriverLogPlans",
-        output_csv="event_log3.csv",
-        output_xes="event_log3.xes"
-    )

@@ -52,7 +52,13 @@ def pipeline(config, exp, rep_index, base_output_dir):
     if run_create_plans:
         print("1) PLAN GENERATION")
         start = time.perf_counter()
-        createPlans(domain_file, problems_dir, plans_output_dir, fast_downward_path=fd_path)
+        planning_conf = config.get("planning", {})
+        createPlans(domain_file, 
+                    problems_dir, 
+                    plans_output_dir, 
+                    fast_downward_path=fd_path,
+                    planning_conf=planning_conf
+        )
         print(f"Time for plan generation: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("plans_dir")):
         plans_output_dir = override.get("plans_dir")
@@ -63,7 +69,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
     # ----------------- DUPLICATE PLAN REMOVAL -----------------
     if config["pipeline_options"].get("run_remove_duplicates", False):
         print("1.1) DUPLICATE PLAN REMOVAL")
-        removeDuplicatePlans(plans_output_dir, simulate=False)
+        removeDuplicatePlans(plans_output_dir)
     else:
         print("Duplicate removal skipped.")
 
@@ -75,7 +81,12 @@ def pipeline(config, exp, rep_index, base_output_dir):
     if run_event_log:
         print("2) EVENT LOG")
         start = time.perf_counter()
-        createEventLog(domain_file, plans_output_dir, event_csv, event_xes)
+        eventlog_conf = config.get("eventlog", {})
+        createEventLog(domain_file, 
+                       plans_output_dir, 
+                       event_csv, 
+                       event_xes,
+                       eventlog_conf=eventlog_conf)
         print(f"Time for event log: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("event_log_csv")):
         event_csv = override.get("event_log_csv")
