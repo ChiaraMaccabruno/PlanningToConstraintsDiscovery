@@ -4,20 +4,17 @@ from pm4py.objects.conversion.log import converter as log_converter
 from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 import datetime
 
-CLEANING_OPTIONS = {
-    "remove_empty_columns": True,      
-    "remove_sporadic_columns": False,  
-    "remove_redundant_columns": True,  
-    "remove_constant_columns": True,   
-}
+def puliziaEventLog(csvInput, csvOutput, xesOutput, cleaning_conf=None):
+    if cleaning_conf is None:
+        cleaning_conf = {}
 
-# Threshold for the minimum presence of values in a column
-global_presence_threshold = 0.20  
+    options = cleaning_conf["options"]
 
-# Minimum number of occurrences of an action to consider it significant
-min_action_occurrences = 2            
+    remove_empty_columns = options["remove_empty_columns"]
+    remove_redundant_columns = options["remove_redundant_columns"]
+    remove_constant_columns = options["remove_constant_columns"]
 
-def puliziaEventLog(csvInput, csvOutput, xesOutput):
+
     # Load CSV file
     df = pd.read_csv(csvInput, sep=";", dtype=str,
                     keep_default_na=False, na_values=["nan", "NaN", ""])
@@ -29,50 +26,15 @@ def puliziaEventLog(csvInput, csvOutput, xesOutput):
         df.rename(columns={"case_id": "case:concept:name"}, inplace=True)
 
     # Remove columns with all empty values
-    if CLEANING_OPTIONS["remove_empty_columns"]:
+    if remove_empty_columns:
         empty_cols = [c for c in df.columns if df[c].eq("").all()]
         if empty_cols:
             print(f"Removing empty columns: {empty_cols}")
             df.drop(columns=empty_cols, inplace=True)
 
-    # Remove columns with mostly missing values
-    if CLEANING_OPTIONS["remove_sporadic_columns"]:
-        cols_to_consider = list(df.columns)
-        cols_to_delete = []
-        n_rows = len(df)
-
-        for col in cols_to_consider:
-            # Create a mask to identify which row contain empty-values in the column
-            non_empty = df[col].astype(str).str.strip() != ""
-            # Calculate the proportion of non-empty values in the column
-            global_presence = non_empty.sum() / max(1, n_rows)
-
-            # Count occurrences per activity:
-            # Count the number of rows per activity
-            action_counts = df.groupby("activity").size()
-            # Count the number of non-empty values per activity for this column
-            action_nonempty = df[non_empty].groupby("activity").size()
-
-            # Check if there is at least one action where this column is always present when the action occurs
-            has_action_always_present = False
-            for action, total in action_counts.items():
-                # Get the count of non-empty values for this activity in this column
-                ne = int(action_nonempty.get(action, 0))
-                # If the activity occurs enough times and all of its rows have non-empty values, then the column is considered "always present" for this action
-                if total >= min_action_occurrences and ne == total:
-                    has_action_always_present = True
-                    break
-
-            # Decide whether to delete column
-            if not has_action_always_present or global_presence < global_presence_threshold:
-                cols_to_delete.append(col)
-
-        if cols_to_delete:
-            print(f"Removing columns with mostly empty or non-useful values: {cols_to_delete}")
-            df.drop(columns=cols_to_delete, inplace=True)
 
     # Remove redundant columns (columns with same values)
-    if CLEANING_OPTIONS["remove_redundant_columns"]:
+    if remove_redundant_columns:
         cols = list(df.columns)
         redundant = set()
 
@@ -88,7 +50,7 @@ def puliziaEventLog(csvInput, csvOutput, xesOutput):
             df.drop(columns=list(redundant), inplace=True)
 
     # Remove columns with a unique value
-    if CLEANING_OPTIONS["remove_constant_columns"]:
+    if remove_constant_columns:
         constant_cols = []
         for col in df.columns:
             unique_vals = set(df[col].astype(str).str.strip().unique()) - {""}

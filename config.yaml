@@ -21,9 +21,9 @@ experiments:
 pipeline_options:
   run_create_plans: false
   run_remove_duplicates: false
-  run_event_log: true
+  run_event_log: false
   run_cleaning: false
-  run_grounding: false
+  run_grounding: true
   run_compound: false
   run_minerful: false
 
@@ -113,15 +113,15 @@ eventlog:
         fields: ["actor", "waypoint_1", "objective", "_", "_"]
 
       communicate_soil_data:
-        fields: ["actor", "_", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+        fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
         static: { object_type: "soil" }
 
       communicate_rock_data:
-        fields: ["actor", "_", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+        fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
         static: { object_type: "rock" }
 
       communicate_image_data:
-        fields: ["actor", "_", "objective", "mode", "waypoint_1", "waypoint_2", "waypoint_3"]
+        fields: ["actor", "_", "objective", "_", "waypoint_1", "waypoint_2"]
         static: { object_type: "image" }
 
     # -------------------------
@@ -213,7 +213,23 @@ eventlog:
 # --------------------------------
 grounding:
   enabled: true
-  columns: ["agent", "location"]
+  csv_separator: ";"
+  drop_original_columns: true
+  plan_column: "case_id"
+  timestamp_column: "timestamp"
+  activity_column: "activity"
+  output_prefix: "grounded_event_log"
+
+  aggregations:
+    - name: "actor_store"
+      columns: ["actor", "store"]
+
+    - name: "concept_actor"
+      columns: ["concept:name", "actor"]
+
+    - name: "store_actor_objective"
+      columns: ["store", "actor","objective"]
+
 
 
 # --------------------------------
@@ -224,12 +240,20 @@ compound:
   columns: ["agent", "action"]
 
 
+
 # --------------------------------
 # CLEANING
 # --------------------------------
 cleaning:
   enabled: true
-  method: "standard"
+  method: "general"      # oppure "none", o altri metodi futuri
+
+  # Opzioni attivabili/disattivabili dall'utente
+  options:
+    remove_empty_columns: true
+    remove_redundant_columns: true
+    remove_constant_columns: true
+
 
 
 # --------------------------------
@@ -237,10 +261,29 @@ cleaning:
 # --------------------------------
 minerful:
   enabled: true
+
+  xmx_memory: "8096m"
+
+  input_file: ""          # opzionale
+  input_directory: ""     # opzionale
+
+  output_dir: "minerful"
+  output_csv_suffix: "_minerful.csv"
+  output_json_suffix: "_minerful.json"
+
+  csv_separator: ";"
   use_classifier: false
-  min_support: 0.1
-  max_support: 1.0
-  constraint_types: ["response", "precedence"]
+  classifier_name: "activityClassifier"
+  classifier_keys: "objective"
+
+  support: 0.06
+  confidence: 1.0
+  coverage: 0.06
+  pruning_strategy: "hierarchyconflictredundancy"
+
+  minerful_jar: "MINERful/MINERful.jar"
+  minerful_lib: "MINERful/lib/*"
+
 
 
 # --------------------------------
@@ -248,8 +291,8 @@ minerful:
 # --------------------------------
 input_override:
   plans_dir: "results/rovers/run_1/plans" 
-  event_log_csv: null
-  event_log_xes: null
+  event_log_csv: "results/rovers/run_1/eventlog/event_log_Rovers_32.csv"
+  event_log_xes: "results/rovers/run_1/eventlog/event_log_Rovers_32.xes"
   cleaned_csv: null
   cleaned_xes: null
   grounded_csv: null

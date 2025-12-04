@@ -103,7 +103,14 @@ def pipeline(config, exp, rep_index, base_output_dir):
     if run_cleaning:
         print("3) CLEANING")
         start = time.perf_counter()
-        puliziaEventLog(event_csv, cleaned_csv, cleaned_xes)
+        cleaning_conf = config.get("cleaning", {})
+
+        puliziaEventLog(
+            csvInput=event_csv,
+            csvOutput=cleaned_csv,
+            xesOutput=cleaned_xes,
+            cleaning_conf=cleaning_conf
+        )
         print(f"Time for cleaning: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("cleaned_csv")):
         cleaned_csv = override.get("cleaned_csv")
@@ -116,14 +123,29 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
     # ----------------- GROUNDING -----------------
     run_grounding = config["pipeline_options"].get("run_grounding", False)
-    grounded_csv = unique_file(os.path.join(grounded_dir, f"grounded_event_log_{Path(problems_dir).name}.csv"))
-    grounded_xes = unique_file(os.path.join(grounded_dir, f"grounded_event_log_{Path(problems_dir).name}.xes"))
+    output_prefix_config = config.get("grounding", {}).get("output_prefix", "grounded_event_log")
+
+    output_prefix = os.path.join(grounded_dir, output_prefix_config)
+
+    grounded_csv = None 
+    grounded_xes = None
 
     if run_grounding:
         print("4) GROUNDING")
         start = time.perf_counter()
-        cols = config.get("grounding", {}).get("columns") if config.get("grounding", {}).get("enabled") else None
-        aggregateColumns(cleaned_csv, grounded_csv, grounded_xes)  # aggiungere cols se necessario
+        grounding_conf = config.get("grounding", {})
+        aggregateColumns(cleaned_csv, 
+                         output_prefix,
+                         grounding_conf=grounding_conf)  # aggiungere cols se necessario
+        try:
+            first_agg_name = grounding_conf["aggregations"][0]["name"]
+            grounded_csv = f"{output_prefix}_{first_agg_name}.csv"
+            grounded_xes = f"{output_prefix}_{first_agg_name}.xes"
+            print(f"[ATTENZIONE] Grounding ha generato più file. Per le fasi successive, verrà usato: {grounded_csv} come riferimento (se non specificato via override).")
+        except:
+            print("[ATTENZIONE] Grounding eseguito, ma nessuna aggregazione trovata per impostare un file di riferimento per le fasi successive.")
+            grounded_csv = cleaned_csv # Fallback
+            grounded_xes = cleaned_xes # Fallback
         print(f"Time for grounding: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("grounded_csv")):
         grounded_csv = override.get("grounded_csv")
@@ -132,6 +154,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
     else:
         grounded_csv = cleaned_csv
         grounded_xes = cleaned_xes
+        print("Grounding disabled; using cleaned event log.")
 
     # ----------------- COMPOUND -----------------
     run_compound = config["pipeline_options"].get("run_compound", False)
