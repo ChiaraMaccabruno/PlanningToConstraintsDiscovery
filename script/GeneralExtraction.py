@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 import subprocess
 import os
 import pandas as pd
+from pathlib import Path
 
 def clean_numeric_fields_in_xes(input_file, output_file):
     tree = ET.parse(input_file)
@@ -62,108 +63,100 @@ def add_classifier_to_xes(input_file, output_file, name, keys):
 
 def extraction(
     input_xes,
+    input_csv,
     output_xes_with_classifier,
     output_csv,
     output_json,
-    input_csv,
-    sep=";",
-    # Flag to decide whether to add classifier to XES
-    use_classifier = False,
-    classifier_name = "activityClassifier",
-    classifier_keys = "objective",
-    # support threshold
-    s = 0.06,
-    # confidence threshold
-    c = 1.0,
-    # coverage threshold
-    g = 0.06,
-    # pruning strategy to remove redundancy
-    prune1 = "hierarchyconflictredundancy",
-): 
+    minerful_conf
+):
+    # ---------------------------
+    # 1) Validazione input
+    # ---------------------------
     if not os.path.exists(input_xes):
-        raise FileNotFoundError(f"[Extraction ERROR] Input XES not found: {input_xes}")  
-    else:
-        print(f"{input_xes}")  
+        raise FileNotFoundError(f"[Extraction ERROR] Input XES not found: {input_xes}")
 
-    cleaned_xes = os.path.join("minerful", os.path.basename(input_xes).replace(".xes", "_cleaned.xes"))
-    print("c")
+    if not os.path.exists(input_csv):
+        raise FileNotFoundError(f"[Extraction ERROR] Input CSV not found: {input_csv}")
+
+    # ---------------------------
+    # 2) Leggere configurazione
+    # ---------------------------
+    sep = minerful_conf.get("csv_separator", ";")
+    use_classifier = minerful_conf.get("use_classifier", False)
+    classifier_name = minerful_conf.get("classifier_name", "activityClassifier")
+    classifier_keys = minerful_conf.get("classifier_keys", "objective")
+
+    support = minerful_conf.get("support", 0.06)
+    confidence = minerful_conf.get("confidence", 1.0)
+    coverage = minerful_conf.get("coverage", 0.06)
+    pruning = minerful_conf.get("pruning_strategy", "hierarchyconflictredundancy")
+
+    xmx_memory = minerful_conf.get("xmx_memory", "4g")
+
+    jar_path = minerful_conf.get("minerful_jar")
+    lib_path = minerful_conf.get("minerful_lib")
+
+    output_dir = minerful_conf.get("output_dir", "minerful")
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ---------------------------
+    # 3) Normalizzazione XES
+    # ---------------------------
+    cleaned_xes = os.path.join(
+        output_dir,
+        os.path.basename(input_xes).replace(".xes", "_cleaned.xes")
+    )
+
     clean_numeric_fields_in_xes(input_xes, cleaned_xes)
-    print("d")
 
+    # ---------------------------
+    # 4) Classifier (opzionale)
+    # ---------------------------
     if use_classifier:
-        # If classifier is enabled, create a new XES with classifier
         final_xes = output_xes_with_classifier
         add_classifier_to_xes(cleaned_xes, final_xes, classifier_name, classifier_keys)
-        # Set flags for MINERful to use the classifier
         classifier_flag = ["-iLClassif", "logspec"]
     else:
         final_xes = cleaned_xes
-        print("a")
-        # If classifier is not used, keep the original XES
-        #final_xes = input_xes
-        # MINERful default behavior: no classifier
-        classifier_flag = [] 
-        print("b")
+        classifier_flag = []
 
-    # directory of this file (script/)
-    script_dir = os.path.dirname(__file__)
-    print("e")
-
-    # go to directory progetto/
-    project_dir = os.path.dirname(script_dir)
-    print("f")
-
-    # path script MINERful
-    minerful_dir = os.path.join(project_dir, "MINERful")
-    print("g")
-
-    if not os.path.exists(os.path.join(minerful_dir, "MINERful.jar")):
-        raise FileNotFoundError("MINERful.jar non trovato nella cartella MINERful")
-
-
+    # ---------------------------
+    # 5) Caricare CSV per validazione
+    # ---------------------------
     df = pd.read_csv(input_csv, sep=sep, dtype=str, keep_default_na=False)
     df = df.fillna("")
-    print("h")
 
-    classpath = os.path.join(minerful_dir, "MINERful.jar") + ":" + \
-            os.path.join(minerful_dir, "lib/*")
+    # ---------------------------
+    # 6) Preparazione comando MINERful
+    # ---------------------------
+    if not os.path.exists(jar_path):
+        raise FileNotFoundError(f"MINERful.jar not found at: {jar_path}")
 
-    print("CLASSPATH =", classpath)
-
-    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    print("i")
-
-    output_dir = os.path.join(project_dir, "minerful")
-    os.makedirs(output_dir, exist_ok=True)
-
-    output_csv = os.path.join(project_dir, "minerful", "minerful_output_rovers.csv")
-    print("j")
-    output_json = os.path.join(project_dir, "minerful", "minerful_output_rovers.json")
-    print("k")
+    classpath = f"{jar_path}:{lib_path}"
 
     cmd = [
         "java",
-        "-Xmx8096m",
+        f"-Xmx{xmx_memory}",
         "-cp", classpath,
         "minerful.MinerFulMinerStarter",
         "-iLF", os.path.abspath(final_xes),
-        "-s", str(s),
-        "-c", str(c),
-        "-g", str(g),
-        "-prune", prune1,
-        "-oCSV", output_csv,
-        "-oJSON", output_json
+        "-s", str(support),
+        "-c", str(confidence),
+        "-g", str(coverage),
+        "-prune", pruning,
+        "-oCSV", os.path.abspath(output_csv),
+        "-oJSON", os.path.abspath(output_json),
     ] + classifier_flag
-    
-    print("Running MINERful with command:", " ".join(cmd))
-    result = subprocess.run(cmd, cwd=minerful_dir, capture_output=True, text=True)
 
-    print("Result:")
+    print("Running MINERful:\n", " ".join(cmd))
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    print("\n--- MINERful stdout ---")
     print(result.stdout)
-    print("Result:")
+    print("\n--- MINERful stderr ---")
     print(result.stderr)
 
-    print(f"Completed. CSV: {output_csv}  JSON: {output_json}")
-    print(f"Completed. CSV: {os.path.abspath(output_csv)}  JSON: {os.path.abspath(output_json)}")
+    print(f"\n[Extraction completed]\nCSV: {output_csv}\nJSON: {output_json}")
 
     return output_csv, output_json

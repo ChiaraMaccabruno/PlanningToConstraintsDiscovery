@@ -15,9 +15,7 @@ def aggregateColumns(
     if grounding_conf is None:
         grounding_conf = {}
 
-    # ---------------------------
-    # LETTURA CONFIG DA YAML
-    # ---------------------------
+
     sep = grounding_conf["csv_separator"]
     drop_original = grounding_conf["drop_original_columns"]
     plan_col = grounding_conf["plan_column"]
@@ -25,9 +23,7 @@ def aggregateColumns(
     activity_col = grounding_conf["activity_column"]
     aggregations = grounding_conf["aggregations"]
 
-    # ---------------------------
-    # CARICAMENTO CSV
-    # ---------------------------
+
     original_df = pd.read_csv(input_csv, sep=sep, dtype=str, keep_default_na=False)
     original_df = original_df.fillna("")
 
@@ -55,6 +51,8 @@ def aggregateColumns(
         name = agg["name"]
         cols = agg["columns"]
 
+        bname = name
+
         df = original_df.copy()
 
         missing = [c for c in cols if c not in df.columns]
@@ -80,7 +78,7 @@ def aggregateColumns(
         col_values = df.pop(name)
         df.insert(first_idx, name, col_values)
 
-        # Rimozione colonne originali (opzionale da YAML)
+        # Rimozione colonne originali 
         if drop_original:
             for c in cols:
                 if c not in ("case:concept:name", "time:timestamp", "event_id", "concept:name"):
@@ -88,20 +86,16 @@ def aggregateColumns(
                         df.drop(columns=[c], inplace=True)
 
 
-        # ---------------------------
-        # ORDINAMENTO COLONNE: XES-FRIENDLY
-        # ---------------------------
+
         order = ["case:concept:name", "event_id", "time:timestamp", "concept:name"]
         other_cols = [c for c in df.columns if c not in order]
         df = df[order + other_cols]
 
         base, ext = os.path.splitext(output_prefix)
-        output_csv = f"{base}_{name}.csv"
-        output_xes = f"{base}_{name}.xes"
+        output_csv = f"{base}_{bname}.csv"
+        output_xes = f"{base}_{bname}.xes"
 
-        # ---------------------------
-        # SALVATAGGIO CSV + XES
-        # ---------------------------
+
         df.to_csv(output_csv, sep=sep, index=False, encoding="utf-8")
         print(f"[GROUNDING] CSV generato: {output_csv}")
 

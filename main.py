@@ -1,6 +1,7 @@
 import os
 import time
 import yaml
+import shutil
 from pathlib import Path
 
 from script.GeneralCreationPlan import createPlans
@@ -42,7 +43,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
     minerful_dir = ensure_dir(os.path.join(base_output_dir, "minerful"))
 
     fd_path = config.get("fast_downward", {}).get("path")
-    override = config.get("input_override", {})
+    override = exp.get("input_override", config.get("input_override", {}))
 
     domain_file = exp["domain_file"]
     problems_dir = exp["problems_dir"]
@@ -164,7 +165,10 @@ def pipeline(config, exp, rep_index, base_output_dir):
     if run_compound:
         print("5) COMPOUND")
         start = time.perf_counter()
-        compoundEvents(grounded_csv, compound_csv, compound_xes)
+        compound_conf = config.get("compound", {})
+        
+        # Passa la configurazione alla funzione
+        compoundEvents(grounded_csv, compound_csv, compound_xes, compound_conf=compound_conf)
         print(f"Time for compound: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("compound_csv")):
         compound_csv = override.get("compound_csv")
@@ -176,25 +180,100 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
     # ----------------- MINERful -----------------
     run_minerful = config["pipeline_options"].get("run_minerful", True)
-    minerful_csv = unique_file(os.path.join(minerful_dir, f"minerful_output_{Path(problems_dir).name}.csv"))
-    result_json = unique_file(os.path.join(minerful_dir, f"minerful_output_{Path(problems_dir).name}.json"))
-    classified_xes = unique_file(os.path.join(minerful_dir, f"classified_event_log_{Path(problems_dir).name}.xes"))
+    minerful_conf = config.get("minerful", {})
+    minerful_dir = ensure_dir(os.path.join(base_output_dir, "minerful"))
+
+    # Determinazione input XES
+    explicit_file = minerful_conf.get("input_file")
+    explicit_dir  = minerful_conf.get("input_directory")
+
+    xes_files = []
+
+    # utente specifica un file
+    if explicit_file:
+        if not os.path.isfile(explicit_file):
+            raise FileNotFoundError(f"input_file non trovato: {explicit_file}")
+        xes_files = [explicit_file]
+
+    # utente specifica una directory
+    elif explicit_dir:
+        if not os.path.isdir(explicit_dir):
+            raise NotADirectoryError(f"input_directory non valido: {explicit_dir}")
+        xes_files = sorted(
+            str(p) for p in Path(explicit_dir).glob("*.xes")
+        )
+        if not xes_files:
+            raise ValueError(f"Nessun file .xes trovato in {explicit_dir}")
+
+    # nessun input → usa TUTTI i file generati dalla grounding
+    else:
+        grounding_dir = os.path.dirname(grounded_csv)
+        xes_files = sorted(
+            str(p) for p in Path(grounding_dir).glob("*.xes")
+        )
+        if not xes_files:
+            raise ValueError(f"Nessun file .xes trovato nella cartella grounding: {grounding_dir}")
+
+    print("File che verranno usati per MINERful:")
+    for f in xes_files:
+        print("  -", f)
+
+    minerful_csv = []
+    minerful_json = []
 
     if run_minerful:
         print("6) MINERful")
         start = time.perf_counter()
-        minerful_conf = config.get("minerful", {})
-        extraction(
-            input_xes=compound_xes,
-            output_xes_with_classifier=classified_xes,
-            output_csv=minerful_csv,
-            output_json=result_json,
-            input_csv=compound_csv,
-            use_classifier=minerful_conf.get("use_classifier", False)
-        )
+
+        for input_xes in xes_files:
+
+            input_csv = override.get("event_log_csv")  # come da tuo codice
+
+
+            if not file_exists_and_not_none(input_csv):
+                # nessun override: usa i CSV prodotti dalla pipeline
+                if run_grounding:
+                    input_csv = grounded_csv
+                elif run_cleaning:
+                    input_csv = cleaned_csv
+                else:
+                    input_csv = event_csv
+
+            
+            stem = Path(input_xes).stem
+
+            output_xes_with_classifier = unique_file(
+                os.path.join(minerful_dir, f"classified_{stem}.xes")
+            )
+            output_csv = unique_file(
+                os.path.join(minerful_dir, f"{stem}{minerful_conf['output_csv_suffix']}")
+            )
+            output_json = unique_file(
+                os.path.join(minerful_dir, f"{stem}{minerful_conf['output_json_suffix']}")
+            )
+
+            csv_out, json_out = extraction(
+                input_xes=input_xes,
+                input_csv=input_csv,
+                output_xes_with_classifier=output_xes_with_classifier,
+                output_csv=output_csv,
+                output_json=output_json,
+                minerful_conf=minerful_conf
+            )
+
+            minerful_csv.append(csv_out)
+            minerful_json.append(json_out)
+
         print(f"Time for MINERful: {time.perf_counter() - start:.2f} sec")
+
+    elif file_exists_and_not_none(override.get("minerful_dir")):
+        minerful_dir = override.get("minerful_dir")
+        print(f"MINERful skipped; using override: {minerful_dir}")
     else:
         print("MINERful skipped.")
+
+
+    #-----------------------------------------------
 
     print(f"Pipeline completed for run {rep_index}. Results in: {base_output_dir}\n")
     return {
@@ -208,7 +287,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
         "compound_csv": compound_csv,
         "compound_xes": compound_xes,
         "minerful_csv": minerful_csv,
-        "minerful_json": result_json
+        "minerful_json": minerful_json
     }
 
 # ----------------- Main -----------------
@@ -226,6 +305,8 @@ def main():
         for r in range(1, repeat + 1):
             run_dir = os.path.join(base_results, exp_name, f"run_{r}")
             ensure_dir(run_dir)
+          
+            shutil.copy("config.yaml", os.path.join(run_dir, "config_used.yaml"))
             print(f"Starting experiment: {exp_name} run {r}/{repeat}")
             try:
                 pipeline(config=config, exp=exp, rep_index=r, base_output_dir=run_dir)

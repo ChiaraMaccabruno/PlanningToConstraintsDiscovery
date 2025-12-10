@@ -1,18 +1,31 @@
 experiments:
-  - name: "agricola"
-    domain_file: "Agricola/domain.pddl"
-    problems_dir: "Agricola/problems/"
-    repeat: 1
+#  - name: "agricola"
+#    domain_file: "Agricola/domain.pddl"
+#    problems_dir: "Agricola/problems/"
+#    repeat: 1
 
-  - name: "rovers"
-    domain_file: "Rovers/StripsRover.pddl"
-    problems_dir: "Rovers/"
-    repeat: 1
+#  - name: "rovers"
+#    domain_file: "Rovers/StripsRover.pddl"
+#    problems_dir: "Rovers/"
+#    repeat: 1
 
   - name: "driverlog"
-    domain_file: "DriverLog/domain.pddl"
-    problems_dir: "DriverLog/problems/"
-    repeat: 2
+    domain_file: "DriverLog/driverlog.pddl"
+    problems_dir: "DriverLog/"
+    repeat: 1
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    input_override:
+      plans_dir: "results/driverlog/run_1/plans"
+      event_log_csv: "results/driverlog/run_1/eventlog/event_log_DriverLog.csv"
+      event_log_xes: "results/driverlog/run_1/eventlog/event_log_DriverLog.xes"
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
 
 
 # --------------------------------
@@ -73,12 +86,12 @@ eventlog:
     timestamp: "timestamp"  # default 
     extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
       - "activity"
-      - "actor"
-      - "store"
-      - "waypoint_1"
-      - "waypoint_2"
-      - "waypoint_3"
-      - "objective"
+      - "driver"
+      - "truck"
+      - "loc_from"
+      - "loc_to"
+      - "object"
+    #  - "objective"
     #  - "location"
     #  - "priority"
 
@@ -221,14 +234,14 @@ grounding:
   output_prefix: "grounded_event_log"
 
   aggregations:
-    - name: "actor_store"
-      columns: ["actor", "store"]
+    - name: "concept_driver"
+      columns: ["activity", "driver"]
 
-    - name: "concept_actor"
-      columns: ["concept:name", "actor"]
+    - name: "concept_driver_t"
+      columns: ["activity", "driver", "truck"]
 
-    - name: "store_actor_objective"
-      columns: ["store", "actor","objective"]
+   # - name: "store_actor_objective"
+   #   columns: ["store", "actor","objective"]
 
 
 
@@ -237,7 +250,19 @@ grounding:
 # --------------------------------
 compound:
   enabled: true
-  columns: ["agent", "action"]
+  csv_separator: ";"
+  
+  # Nomi delle colonne nel FILE DI INPUT (CSV)
+  # Se il file viene da GeneralCreationEventLog, usa case_id / timestamp / activity
+  case_column: "case_id"       
+  timestamp_column: "timestamp"
+  activity_column: "activity"  
+
+  # Opzionale: Lista delle 'basi' delle colonne da unire.
+  # Es: se hai waypoint_1, waypoint_2 e vuoi unire solo quelli, scrivi ["waypoint"].
+  # Se lasciato vuoto o commentato, lo script cercherà AUTOMATICAMENTE tutte le colonne numerate (col_1, col_2...)
+  columns: ["loc_from", "loc_to"]  
+
 
 
 
@@ -267,7 +292,6 @@ minerful:
   input_file: ""          # opzionale
   input_directory: ""     # opzionale
 
-  output_dir: "minerful"
   output_csv_suffix: "_minerful.csv"
   output_json_suffix: "_minerful.json"
 
@@ -276,29 +300,14 @@ minerful:
   classifier_name: "activityClassifier"
   classifier_keys: "objective"
 
-  support: 0.06
+  support: 0.02
   confidence: 1.0
-  coverage: 0.06
+  coverage: 0.02
   pruning_strategy: "hierarchyconflictredundancy"
 
   minerful_jar: "MINERful/MINERful.jar"
   minerful_lib: "MINERful/lib/*"
 
-
-
-# --------------------------------
-# INPUT OVERRIDE
-# --------------------------------
-input_override:
-  plans_dir: "results/rovers/run_1/plans" 
-  event_log_csv: "results/rovers/run_1/eventlog/event_log_Rovers_32.csv"
-  event_log_xes: "results/rovers/run_1/eventlog/event_log_Rovers_32.xes"
-  cleaned_csv: null
-  cleaned_xes: null
-  grounded_csv: null
-  grounded_xes: null
-  compound_csv: null
-  compound_xes: null
 
 
 # --------------------------------
