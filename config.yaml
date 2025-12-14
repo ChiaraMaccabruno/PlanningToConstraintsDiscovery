@@ -4,22 +4,17 @@ experiments:
 #    problems_dir: "Agricola/problems/"
 #    repeat: 1
 
-#  - name: "rovers"
-#    domain_file: "Rovers/StripsRover.pddl"
-#    problems_dir: "Rovers/"
-#    repeat: 1
-
-  - name: "driverlog"
-    domain_file: "DriverLog/driverlog.pddl"
-    problems_dir: "DriverLog/"
+  - name: "rovers"
+    domain_file: "Rovers/StripsRover.pddl"
+    problems_dir: "Rovers/"
     repeat: 1
     # --------------------------------
     # INPUT OVERRIDE
     # --------------------------------
     input_override:
-      plans_dir: "results/driverlog/run_1/plans"
-      event_log_csv: "results/driverlog/run_1/eventlog/event_log_DriverLog.csv"
-      event_log_xes: "results/driverlog/run_1/eventlog/event_log_DriverLog.xes"
+      plans_dir: "results/rovers/run_1/plans"
+      event_log_csv: null
+      event_log_xes: null
       cleaned_csv: null
       cleaned_xes: null
       grounded_csv: null
@@ -28,285 +23,402 @@ experiments:
       compound_xes: null
 
 
-# --------------------------------
-# per eseguire fasi
-# --------------------------------
-pipeline_options:
-  run_create_plans: false
-  run_remove_duplicates: false
-  run_event_log: false
-  run_cleaning: false
-  run_grounding: true
-  run_compound: false
-  run_minerful: false
-
-
-# --------------------------------
-# parametri per creazione piani
-# --------------------------------
-planning:
-  run_alias: true
-  run_non_alias: true
-  time_limit_alias: "800s"
-  time_limit_non_alias: 800
-  max_workers: 6
-
-  # Lista completa dei comandi configurabili:
-  commands:
-    - "--search astar(hmax())"
-    - "--search astar(lmcut())"
-    - "--search eager_greedy([ff()])"
-    - "--search eager_greedy([add()])"
-    - "--search eager_wastar([add()],w=5)"
-    - "--search eager_wastar([ff()],w=5)"
-    - "--search lazy_greedy([ff()])"
-    - "--search lazy_greedy([cg()])"
-    - "--search lazy_wastar([ff()],w=5)"
-    - "--search lazy_wastar([cg()],w=5)"
-    - "--search ehc(ff())"
-    - "--alias lama"
-    - "--alias seq-sat-lama-2011"
-    - "--alias seq-sat-fdss-2023"
-    - "--alias seq-sat-fdss-2018"
-    - "--alias seq-sat-fd-autotune-1"
-    - "--alias seq-sat-fd-autotune-2"
-
-# --------------------------------
-
-eventlog:
-  # Timestamp iniziale del primo evento 
-  start_timestamp: "2025-01-01T00:00:00"
-  # Incremento tra gli eventi in secondi
-  increment_seconds: 1
-  # Separatore CSV (può essere ; o ,)
-  csv_delimiter: ";"
-  column_names:
-    case_id: "case_id"      # default 
-    event_id: "event_id"    # default 
-    timestamp: "timestamp"  # default 
-    extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
-      - "activity"
-      - "driver"
-      - "truck"
-      - "loc_from"
-      - "loc_to"
-      - "object"
-    #  - "objective"
-    #  - "location"
-    #  - "priority"
-
-  # File di output (se l'utente vuole specificarlo)
-  output_csv: null        # es. "results/event_log.csv"
-  output_xes: null        # es. "results/event_log.xes"
-
-  activity_mapping:
-
-    # -------------------------
-    # DOMAIN: ROVERS
-    # -------------------------
-    rovers:
-      navigate:
-        fields: ["actor", "waypoint_1", "waypoint_2"]
-
-      sample_soil:
-        fields: ["actor", "store", "waypoint_1"]
-        static: { object_type: "soil" }
-
-      sample_rock:
-        fields: ["actor", "store", "waypoint_1"]
-        static: { object_type: "rock" }
-
-      drop:
-        fields: ["actor", "store"]
-
-      calibrate:
-        fields: ["actor", "_", "objective", "waypoint_1"]
-
-      take_image:
-        fields: ["actor", "waypoint_1", "objective", "_", "_"]
-
-      communicate_soil_data:
-        fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
-        static: { object_type: "soil" }
-
-      communicate_rock_data:
-        fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
-        static: { object_type: "rock" }
-
-      communicate_image_data:
-        fields: ["actor", "_", "objective", "_", "waypoint_1", "waypoint_2"]
-        static: { object_type: "image" }
-
-    # -------------------------
-    # DOMAIN: AGRICOLA
-    # -------------------------
-    agricola:
-      take_grain:
-        fields: ["worker", "worker_next", "_", "round", "vegetable"]
-
-      take_food:
-        fields: ["worker", "worker_next", "_", "round", "vegetable"]
-
-      plow_field:
-        fields: ["worker", "worker_next", "_", "round"]
-
-      sow:
-        fields: ["worker", "worker_next", "_", "round", "vegetable"]
-
-      collect_resource:
-        fields: ["worker", "worker_next", "_", "round", "_", "resource"]
-
-      build_room:
-        fields: ["worker", "worker_next"]
-
-      improve_home:
-        fields: ["worker", "worker_next"]
-
-      family_growth:
-        fields: ["worker", "worker_next"]
-
-      collect_animal:
-        fields: ["animal", "_", "worker", "worker_next", "_", "round"]
-
-      collect_cook_animal:
-        fields: ["animal", "_", "worker", "worker_next", "_", "round"]
-
-      ag__harvest_collecting_veg:
-        fields: ["round", "_", "vegetable"]
-
-      ag__harvest_feed:
-        fields: ["round"]
-
-      ag__harvest_breeding_animal:
-        fields: ["round", "_", "animal"]
-
-      ag__harvest_collect_end:
-        fields: ["round"]
-
-      ag__harvest_breed_end:
-        fields: ["round"]
-
-      ag__finish_round_backhome:
-        fields: ["round"]
-
-      ag__finish_round_renew:
-        fields: ["round"]
-
-      ag__advance_round_normal:
-        fields: ["round"]
-
-      ag__finish_stage:
-        fields: ["_", "_", "round"]
-
-    # -------------------------
-    # DOMAIN: DRIVERLOG
-    # -------------------------
-    driverlog:
-      load-truck:
-        fields: ["object", "truck", "loc_from"]
-
-      unload-truck:
-        fields: ["object", "truck", "loc_to"]
-
-      board-truck:
-        fields: ["driver", "truck", "loc_from"]
-
-      disembark-truck:
-        fields: ["driver", "truck", "loc_to"]
-
-      drive-truck:
-        fields: ["truck", "loc_from", "loc_to", "driver"]
-
-      walk:
-        fields: ["driver", "loc_from", "loc_to"]
-
-
-# --------------------------------
-# GROUNDING
-# --------------------------------
-grounding:
-  enabled: true
-  csv_separator: ";"
-  drop_original_columns: true
-  plan_column: "case_id"
-  timestamp_column: "timestamp"
-  activity_column: "activity"
-  output_prefix: "grounded_event_log"
-
-  aggregations:
-    - name: "concept_driver"
-      columns: ["activity", "driver"]
-
-    - name: "concept_driver_t"
-      columns: ["activity", "driver", "truck"]
-
-   # - name: "store_actor_objective"
-   #   columns: ["store", "actor","objective"]
-
-
-
-# --------------------------------
-# COMPOUND
-# --------------------------------
-compound:
-  enabled: true
-  csv_separator: ";"
-  
-  # Nomi delle colonne nel FILE DI INPUT (CSV)
-  # Se il file viene da GeneralCreationEventLog, usa case_id / timestamp / activity
-  case_column: "case_id"       
-  timestamp_column: "timestamp"
-  activity_column: "activity"  
-
-  # Opzionale: Lista delle 'basi' delle colonne da unire.
-  # Es: se hai waypoint_1, waypoint_2 e vuoi unire solo quelli, scrivi ["waypoint"].
-  # Se lasciato vuoto o commentato, lo script cercherà AUTOMATICAMENTE tutte le colonne numerate (col_1, col_2...)
-  columns: ["loc_from", "loc_to"]  
-
-
-
-
-# --------------------------------
-# CLEANING
-# --------------------------------
-cleaning:
-  enabled: true
-  method: "general"      # oppure "none", o altri metodi futuri
-
-  # Opzioni attivabili/disattivabili dall'utente
-  options:
-    remove_empty_columns: true
-    remove_redundant_columns: true
-    remove_constant_columns: true
-
-
-
-# --------------------------------
-# MINERFUL
-# --------------------------------
-minerful:
-  enabled: true
-
-  xmx_memory: "8096m"
-
-  input_file: ""          # opzionale
-  input_directory: ""     # opzionale
-
-  output_csv_suffix: "_minerful.csv"
-  output_json_suffix: "_minerful.json"
-
-  csv_separator: ";"
-  use_classifier: false
-  classifier_name: "activityClassifier"
-  classifier_keys: "objective"
-
-  support: 0.02
-  confidence: 1.0
-  coverage: 0.02
-  pruning_strategy: "hierarchyconflictredundancy"
-
-  minerful_jar: "MINERful/MINERful.jar"
-  minerful_lib: "MINERful/lib/*"
+    # --------------------------------
+    # per eseguire fasi
+    # --------------------------------
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: true
+      run_cleaning: false
+      run_grounding: true
+      run_compound: true
+      run_minerful: true
+
+
+    # --------------------------------
+    # parametri per creazione piani
+    # --------------------------------
+    planning:
+      run_alias: true
+      run_non_alias: true
+      time_limit_alias: "800s"
+      time_limit_non_alias: 800
+      max_workers: 6
+
+      # Lista completa dei comandi configurabili:
+      commands:
+        - "--search astar(hmax())"
+        - "--search astar(lmcut())"
+        - "--search eager_greedy([ff()])"
+        - "--search eager_greedy([add()])"
+        - "--search eager_wastar([add()],w=5)"
+        - "--search eager_wastar([ff()],w=5)"
+        - "--search lazy_greedy([ff()])"
+        - "--search lazy_greedy([cg()])"
+        - "--search lazy_wastar([ff()],w=5)"
+        - "--search lazy_wastar([cg()],w=5)"
+        - "--search ehc(ff())"
+        - "--alias lama"
+        - "--alias seq-sat-lama-2011"
+        - "--alias seq-sat-fdss-2023"
+        - "--alias seq-sat-fdss-2018"
+        - "--alias seq-sat-fd-autotune-1"
+        - "--alias seq-sat-fd-autotune-2"
+
+    # --------------------------------
+
+    eventlog:
+      # Timestamp iniziale del primo evento 
+      start_timestamp: "2025-01-01T00:00:00"
+      # Incremento tra gli eventi in secondi
+      increment_seconds: 1
+      # Separatore CSV (può essere ; o ,)
+      csv_delimiter: ";"
+      column_names:
+        case_id: "case_id"      # default 
+        event_id: "event_id"    # default 
+        timestamp: "timestamp"  # default 
+        extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
+          - "actor"
+          - "store"
+          - "objective"
+          - "waypoint_1"
+          - "waypoint_2"
+          - "waypoint_3"
+        #  - "objective"
+        #  - "location"
+        #  - "priority"
+
+      # File di output (se l'utente vuole specificarlo)
+      output_csv: null        # es. "results/event_log.csv"
+      output_xes: null        # es. "results/event_log.xes"
+
+      activity_mapping:
+
+        # -------------------------
+        # DOMAIN: ROVERS
+        # -------------------------
+        rovers:
+          navigate:
+            fields: ["actor", "waypoint_1", "waypoint_2"]
+
+          sample_soil:
+            fields: ["actor", "store", "waypoint_1"]
+            static: { object_type: "soil" }
+
+          sample_rock:
+            fields: ["actor", "store", "waypoint_1"]
+            static: { object_type: "rock" }
+
+          drop:
+            fields: ["actor", "store"]
+
+          calibrate:
+            fields: ["actor", "_", "objective", "waypoint_1"]
+
+          take_image:
+            fields: ["actor", "waypoint_1", "objective", "_", "_"]
+
+          communicate_soil_data:
+            fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+            static: { object_type: "soil" }
+
+          communicate_rock_data:
+            fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+            static: { object_type: "rock" }
+
+          communicate_image_data:
+            fields: ["actor", "_", "objective", "_", "waypoint_1", "waypoint_2"]
+            static: { object_type: "image" }
+
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    grounding:
+      enabled: true
+      csv_separator: ";"
+      drop_original_columns: true
+      plan_column: "case_id"
+      timestamp_column: "timestamp"
+      activity_column: "activity"
+      output_prefix: "grounded_event_log"
+
+      aggregations:
+        - name: "activity_actor"
+          columns: ["activity", "actor"]
+
+        - name: "store_actor_objective"
+          columns: ["store", "actor","objective"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    compound:
+      enabled: true
+      csv_separator: ";"
+      
+      # Nomi delle colonne nel FILE DI INPUT (CSV)
+      # Se il file viene da GeneralCreationEventLog, usa case_id / timestamp / activity
+      case_column: "case_id"       
+      timestamp_column: "timestamp"
+      activity_column: "activity"  
+
+      # Opzionale: Lista delle 'basi' delle colonne da unire.
+      # Es: se hai waypoint_1, waypoint_2 e vuoi unire solo quelli, scrivi ["waypoint"].
+      # Se lasciato vuoto o commentato, lo script cercherà AUTOMATICAMENTE tutte le colonne numerate (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      enabled: true
+      method: "general"      # oppure "none", o altri metodi futuri
+
+      # Opzioni attivabili/disattivabili dall'utente
+      options:
+        remove_empty_columns: true
+        remove_redundant_columns: true
+        remove_constant_columns: true
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    minerful:
+      enabled: true
+
+      xmx_memory: "8096m"
+
+      input_file: ""          # opzionale
+      input_directory: ""     # opzionale
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+
+      csv_separator: ";"
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.05
+      confidence: 1.0
+      coverage: 0.05
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+  - name: "driverlog"
+    domain_file: "DriverLog/driverlog.pddl"
+    problems_dir: "DriverLog/"
+    repeat: 2
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    input_override:
+      plans_dir: "results/driverlog/run_1/plans"
+      event_log_csv: null
+      event_log_xes: null
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # per eseguire fasi
+    # --------------------------------
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: true
+      run_cleaning: false
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+
+
+    # --------------------------------
+    # parametri per creazione piani
+    # --------------------------------
+    planning:
+      run_alias: true
+      run_non_alias: true
+      time_limit_alias: "800s"
+      time_limit_non_alias: 800
+      max_workers: 6
+
+      # Lista completa dei comandi configurabili:
+      commands:
+        - "--search astar(hmax())"
+        - "--search astar(lmcut())"
+        - "--search eager_greedy([ff()])"
+        - "--search eager_greedy([add()])"
+        - "--search eager_wastar([add()],w=5)"
+        - "--search eager_wastar([ff()],w=5)"
+        - "--search lazy_greedy([ff()])"
+        - "--search lazy_greedy([cg()])"
+        - "--search lazy_wastar([ff()],w=5)"
+        - "--search lazy_wastar([cg()],w=5)"
+        - "--search ehc(ff())"
+        - "--alias lama"
+        - "--alias seq-sat-lama-2011"
+        - "--alias seq-sat-fdss-2023"
+        - "--alias seq-sat-fdss-2018"
+        - "--alias seq-sat-fd-autotune-1"
+        - "--alias seq-sat-fd-autotune-2"
+
+    # --------------------------------
+
+    eventlog:
+      # Timestamp iniziale del primo evento 
+      start_timestamp: "2025-01-01T00:00:00"
+      # Incremento tra gli eventi in secondi
+      increment_seconds: 1
+      # Separatore CSV (può essere ; o ,)
+      csv_delimiter: ";"
+      column_names:
+        case_id: "case_id"      # default 
+        event_id: "event_id"    # default 
+        timestamp: "timestamp"  # default 
+        extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
+          - "activity"
+          - "driver"
+          - "truck"
+          - "loc_from"
+          - "loc_to"
+          - "object"
+        #  - "objective"
+        #  - "location"
+        #  - "priority"
+
+      # File di output (se l'utente vuole specificarlo)
+      output_csv: null        # es. "results/event_log.csv"
+      output_xes: null        # es. "results/event_log.xes"
+
+      activity_mapping:
+
+        
+        # -------------------------
+        # DOMAIN: DRIVERLOG
+        # -------------------------
+        driverlog:
+          load-truck:
+            fields: ["object", "truck", "loc_from"]
+
+          unload-truck:
+            fields: ["object", "truck", "loc_to"]
+
+          board-truck:
+            fields: ["driver", "truck", "loc_from"]
+
+          disembark-truck:
+            fields: ["driver", "truck", "loc_to"]
+
+          drive-truck:
+            fields: ["truck", "loc_from", "loc_to", "driver"]
+
+          walk:
+            fields: ["driver", "loc_from", "loc_to"]
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    grounding:
+      enabled: true
+      csv_separator: ";"
+      drop_original_columns: true
+      plan_column: "case_id"
+      timestamp_column: "timestamp"
+      activity_column: "activity"
+      output_prefix: "grounded_event_log"
+
+      aggregations:
+        - name: "concept_driver"
+          columns: ["activity", "driver"]
+
+        - name: "concept_driver_t"
+          columns: ["activity", "driver", "truck"]
+
+      # - name: "store_actor_objective"
+      #   columns: ["store", "actor","objective"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    compound:
+      enabled: true
+      csv_separator: ";"
+      
+      # Nomi delle colonne nel FILE DI INPUT (CSV)
+      # Se il file viene da GeneralCreationEventLog, usa case_id / timestamp / activity
+      case_column: "case_id"       
+      timestamp_column: "timestamp"
+      activity_column: "activity"  
+
+      # Opzionale: Lista delle 'basi' delle colonne da unire.
+      # Es: se hai waypoint_1, waypoint_2 e vuoi unire solo quelli, scrivi ["waypoint"].
+      # Se lasciato vuoto o commentato, lo script cercherà AUTOMATICAMENTE tutte le colonne numerate (col_1, col_2...)
+      columns: ["loc_from", "loc_to"]  
+
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      enabled: true
+      method: "general"      # oppure "none", o altri metodi futuri
+
+      # Opzioni attivabili/disattivabili dall'utente
+      options:
+        remove_empty_columns: true
+        remove_redundant_columns: true
+        remove_constant_columns: true
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    minerful:
+      enabled: true
+
+      xmx_memory: "8096m"
+
+      input_file: ""          # opzionale
+      input_directory: ""     # opzionale
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+
+      csv_separator: ";"
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.06
+      confidence: 1.0
+      coverage: 0.06
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
 
 
 

@@ -48,12 +48,14 @@ def pipeline(config, exp, rep_index, base_output_dir):
     domain_file = exp["domain_file"]
     problems_dir = exp["problems_dir"]
 
+    pipeline_opts = exp.get("pipeline_options", {})
+
     # ----------------- PLAN GENERATION -----------------
-    run_create_plans = config["pipeline_options"].get("run_create_plans", True)
+    run_create_plans = pipeline_opts.get("run_create_plans", True)
     if run_create_plans:
         print("1) PLAN GENERATION")
         start = time.perf_counter()
-        planning_conf = config.get("planning", {})
+        planning_conf = exp.get("planning", {})
         createPlans(domain_file, 
                     problems_dir, 
                     plans_output_dir, 
@@ -68,21 +70,21 @@ def pipeline(config, exp, rep_index, base_output_dir):
         raise RuntimeError("No plans available to continue pipeline.")
 
     # ----------------- DUPLICATE PLAN REMOVAL -----------------
-    if config["pipeline_options"].get("run_remove_duplicates", False):
+    if pipeline_opts.get("run_remove_duplicates", False):
         print("1.1) DUPLICATE PLAN REMOVAL")
         removeDuplicatePlans(plans_output_dir)
     else:
         print("Duplicate removal skipped.")
 
     # ----------------- EVENT LOG -----------------
-    run_event_log = config["pipeline_options"].get("run_event_log", True)
+    run_event_log = pipeline_opts.get("run_event_log", True)
     event_csv = unique_file(os.path.join(eventlog_dir, f"event_log_{Path(problems_dir).name}.csv"))
     event_xes = unique_file(os.path.join(eventlog_dir, f"event_log_{Path(problems_dir).name}.xes"))
 
     if run_event_log:
         print("2) EVENT LOG")
         start = time.perf_counter()
-        eventlog_conf = config.get("eventlog", {})
+        eventlog_conf = exp.get("eventlog", {})
         createEventLog(domain_file, 
                        plans_output_dir, 
                        event_csv, 
@@ -97,14 +99,14 @@ def pipeline(config, exp, rep_index, base_output_dir):
         raise RuntimeError("No event log available.")
 
     # ----------------- CLEANING -----------------
-    run_cleaning = config["pipeline_options"].get("run_cleaning", False)
+    run_cleaning = pipeline_opts.get("run_cleaning", False)
     cleaned_csv = unique_file(os.path.join(cleaned_dir, f"cleaned_event_log_{Path(problems_dir).name}.csv"))
     cleaned_xes = unique_file(os.path.join(cleaned_dir, f"cleaned_event_log_{Path(problems_dir).name}.xes"))
 
     if run_cleaning:
         print("3) CLEANING")
         start = time.perf_counter()
-        cleaning_conf = config.get("cleaning", {})
+        cleaning_conf = exp.get("cleaning", {})
 
         puliziaEventLog(
             csvInput=event_csv,
@@ -123,10 +125,14 @@ def pipeline(config, exp, rep_index, base_output_dir):
         print("Cleaning disabled; using raw event log.")
 
     # ----------------- GROUNDING -----------------
-    run_grounding = config["pipeline_options"].get("run_grounding", False)
-    output_prefix_config = config.get("grounding", {}).get("output_prefix", "grounded_event_log")
+    run_grounding = pipeline_opts.get("run_grounding", False)
+    grounding_conf = exp.get("grounding", {})
+    output_prefix_config = grounding_conf.get("output_prefix", "grounded_event_log")
 
     output_prefix = os.path.join(grounded_dir, output_prefix_config)
+
+    grounded_csv_list = []
+    grounded_xes_list = []
 
     grounded_csv = None 
     grounded_xes = None
@@ -134,19 +140,24 @@ def pipeline(config, exp, rep_index, base_output_dir):
     if run_grounding:
         print("4) GROUNDING")
         start = time.perf_counter()
-        grounding_conf = config.get("grounding", {})
         aggregateColumns(cleaned_csv, 
                          output_prefix,
                          grounding_conf=grounding_conf)  # aggiungere cols se necessario
-        try:
-            first_agg_name = grounding_conf["aggregations"][0]["name"]
-            grounded_csv = f"{output_prefix}_{first_agg_name}.csv"
-            grounded_xes = f"{output_prefix}_{first_agg_name}.xes"
-            print(f"[ATTENZIONE] Grounding ha generato più file. Per le fasi successive, verrà usato: {grounded_csv} come riferimento (se non specificato via override).")
-        except:
-            print("[ATTENZIONE] Grounding eseguito, ma nessuna aggregazione trovata per impostare un file di riferimento per le fasi successive.")
-            grounded_csv = cleaned_csv # Fallback
-            grounded_xes = cleaned_xes # Fallback
+        # Raccogli TUTTI i file grounding generati
+        grounded_csv_list = sorted(str(p) for p in Path(grounded_dir).glob("*.csv"))
+        grounded_xes_list = sorted(str(p) for p in Path(grounded_dir).glob("*.xes"))
+
+        if not grounded_csv_list:
+            print("Nessun file grounding trovato, fallback al cleaned.")
+            grounded_csv_list = [cleaned_csv]
+            grounded_xes_list = [cleaned_xes]
+
+        # Imposta un file “di riferimento” solo per compatibilità con resto pipeline
+        grounded_csv = grounded_csv_list[0]
+        grounded_xes = grounded_xes_list[0]
+
+        print(f"Grounding ha generato {len(grounded_csv_list)} aggregazioni.")
+
         print(f"Time for grounding: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("grounded_csv")):
         grounded_csv = override.get("grounded_csv")
@@ -158,29 +169,37 @@ def pipeline(config, exp, rep_index, base_output_dir):
         print("Grounding disabled; using cleaned event log.")
 
     # ----------------- COMPOUND -----------------
-    run_compound = config["pipeline_options"].get("run_compound", False)
-    compound_csv = unique_file(os.path.join(compound_dir, f"compound_event_log_{Path(problems_dir).name}.csv"))
-    compound_xes = unique_file(os.path.join(compound_dir, f"compound_event_log_{Path(problems_dir).name}.xes"))
+    run_compound = pipeline_opts.get("run_compound", False)
+
+    compound_csv_list = []
+    compound_xes_list = []
 
     if run_compound:
         print("5) COMPOUND")
         start = time.perf_counter()
-        compound_conf = config.get("compound", {})
-        
-        # Passa la configurazione alla funzione
-        compoundEvents(grounded_csv, compound_csv, compound_xes, compound_conf=compound_conf)
-        print(f"Time for compound: {time.perf_counter() - start:.2f} sec")
-    elif file_exists_and_not_none(override.get("compound_csv")):
-        compound_csv = override.get("compound_csv")
-        compound_xes = override.get("compound_xes")
-        print(f"Compound skipped; using override: {compound_csv}")
+        compound_conf = exp.get("compound", {})
+
+        # Applica compound a TUTTI i file grounding
+        for g_csv, g_xes in zip(grounded_csv_list, grounded_xes_list):
+
+            stem = Path(g_csv).stem.replace(".csv", "")
+            out_csv = os.path.join(compound_dir, f"compound_{stem}.csv")
+            out_xes = os.path.join(compound_dir, f"compound_{stem}.xes")
+
+            compoundEvents(g_csv, out_csv, out_xes, compound_conf=compound_conf)
+
+            compound_csv_list.append(out_csv)
+            compound_xes_list.append(out_xes)
+
+        print(f"Compound generato per {len(compound_csv_list)} aggregazioni.")
     else:
-        compound_csv = grounded_csv
-        compound_xes = grounded_xes
+        compound_csv_list = grounded_csv_list
+        compound_xes_list = grounded_xes_list
+
 
     # ----------------- MINERful -----------------
-    run_minerful = config["pipeline_options"].get("run_minerful", True)
-    minerful_conf = config.get("minerful", {})
+    run_minerful = pipeline_opts.get("run_minerful", True)
+    minerful_conf = exp.get("minerful", {})
     minerful_dir = ensure_dir(os.path.join(base_output_dir, "minerful"))
 
     # Determinazione input XES
@@ -207,12 +226,22 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
     # nessun input → usa TUTTI i file generati dalla grounding
     else:
-        grounding_dir = os.path.dirname(grounded_csv)
-        xes_files = sorted(
-            str(p) for p in Path(grounding_dir).glob("*.xes")
-        )
-        if not xes_files:
-            raise ValueError(f"Nessun file .xes trovato nella cartella grounding: {grounding_dir}")
+        if run_compound:
+            xes_files = compound_xes_list
+
+        elif run_grounding:
+            xes_files = grounded_xes_list
+
+        elif run_cleaning:
+            # cleaning produce solo 1 file, non liste
+            xes_files = [cleaned_xes]
+
+        else:
+            # fallback sugli event log originali
+            xes_files = [event_xes]
+
+    if not xes_files:
+        raise ValueError(f"Nessun file .xes trovato")
 
     print("File che verranno usati per MINERful:")
     for f in xes_files:
@@ -232,12 +261,14 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
             if not file_exists_and_not_none(input_csv):
                 # nessun override: usa i CSV prodotti dalla pipeline
-                if run_grounding:
-                    input_csv = grounded_csv
-                elif run_cleaning:
-                    input_csv = cleaned_csv
+                potential_csv = str(Path(input_xes).with_suffix(".csv"))
+                
+                if os.path.exists(potential_csv):
+                    input_csv = potential_csv
                 else:
-                    input_csv = event_csv
+                    # Fallback di sicurezza se il file specifico non esiste
+                    print(f"[WARN] CSV specifico non trovato per {Path(input_xes).name}. Fallback su {cleaned_csv}")
+                    input_csv = cleaned_csv
 
             
             stem = Path(input_xes).stem
@@ -245,11 +276,12 @@ def pipeline(config, exp, rep_index, base_output_dir):
             output_xes_with_classifier = unique_file(
                 os.path.join(minerful_dir, f"classified_{stem}.xes")
             )
+            # Modifica consigliata per robustezza
             output_csv = unique_file(
-                os.path.join(minerful_dir, f"{stem}{minerful_conf['output_csv_suffix']}")
+                os.path.join(minerful_dir, f"{stem}{minerful_conf.get('output_csv_suffix', '_minerful.csv')}")
             )
             output_json = unique_file(
-                os.path.join(minerful_dir, f"{stem}{minerful_conf['output_json_suffix']}")
+                os.path.join(minerful_dir, f"{stem}{minerful_conf.get('output_json_suffix', '_minerful.json')}")
             )
 
             csv_out, json_out = extraction(
@@ -284,8 +316,8 @@ def pipeline(config, exp, rep_index, base_output_dir):
         "cleaned_xes": cleaned_xes,
         "grounded_csv": grounded_csv,
         "grounded_xes": grounded_xes,
-        "compound_csv": compound_csv,
-        "compound_xes": compound_xes,
+        "compound_csv": compound_csv_list,
+        "compound_xes": compound_xes_list,
         "minerful_csv": minerful_csv,
         "minerful_json": minerful_json
     }
