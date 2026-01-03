@@ -12,11 +12,17 @@ from script.GeneralGrounding import aggregateColumns
 from script.GeneralCompoundEvents import compoundEvents
 from script.GeneralExtraction import extraction
 
+from TC import apply_trajectory_constraints
+from ReverseTC import apply_reverse_mapping
+
 # ----------------- Utility -----------------
+
+# Creates a directory if it doesn't exist
 def ensure_dir(d):
     os.makedirs(d, exist_ok=True)
     return d
 
+# Generates a unique filename by appending an index if the file already exists
 def unique_file(path):
     directory, filename = os.path.split(path)
     name, ext = os.path.splitext(filename)
@@ -27,6 +33,7 @@ def unique_file(path):
         i += 1
     return new_path
 
+# Helper to validate if a file path is provided and exists
 def file_exists_and_not_none(value):
     return value is not None and value != "" and os.path.exists(value)
 
@@ -34,7 +41,7 @@ def file_exists_and_not_none(value):
 def pipeline(config, exp, rep_index, base_output_dir):
     t0 = time.perf_counter()
 
-    # Creazione cartelle output
+    # Create output subdirectories for each stage of the process
     plans_output_dir = ensure_dir(os.path.join(base_output_dir, "plans"))
     eventlog_dir = ensure_dir(os.path.join(base_output_dir, "eventlog"))
     cleaned_dir = ensure_dir(os.path.join(base_output_dir, "cleaned"))
@@ -142,21 +149,20 @@ def pipeline(config, exp, rep_index, base_output_dir):
         start = time.perf_counter()
         aggregateColumns(cleaned_csv, 
                          output_prefix,
-                         grounding_conf=grounding_conf)  # aggiungere cols se necessario
-        # Raccogli TUTTI i file grounding generati
+                         grounding_conf=grounding_conf) 
+
         grounded_csv_list = sorted(str(p) for p in Path(grounded_dir).glob("*.csv"))
         grounded_xes_list = sorted(str(p) for p in Path(grounded_dir).glob("*.xes"))
 
         if not grounded_csv_list:
-            print("Nessun file grounding trovato, fallback al cleaned.")
+            print("No grounding files found, falling back to cleaned log.")
             grounded_csv_list = [cleaned_csv]
             grounded_xes_list = [cleaned_xes]
 
-        # Imposta un file “di riferimento” solo per compatibilità con resto pipeline
         grounded_csv = grounded_csv_list[0]
         grounded_xes = grounded_xes_list[0]
 
-        print(f"Grounding ha generato {len(grounded_csv_list)} aggregazioni.")
+        print(f"Grounding generated {len(grounded_csv_list)} aggregations.")
 
         print(f"Time for grounding: {time.perf_counter() - start:.2f} sec")
     elif file_exists_and_not_none(override.get("grounded_csv")):
@@ -179,7 +185,6 @@ def pipeline(config, exp, rep_index, base_output_dir):
         start = time.perf_counter()
         compound_conf = exp.get("compound", {})
 
-        # Applica compound a TUTTI i file grounding
         for g_csv, g_xes in zip(grounded_csv_list, grounded_xes_list):
 
             stem = Path(g_csv).stem.replace(".csv", "")
@@ -191,7 +196,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
             compound_csv_list.append(out_csv)
             compound_xes_list.append(out_xes)
 
-        print(f"Compound generato per {len(compound_csv_list)} aggregazioni.")
+        print(f"Compound generated for {len(compound_csv_list)} aggregations.")
     else:
         compound_csv_list = grounded_csv_list
         compound_xes_list = grounded_xes_list
@@ -202,29 +207,25 @@ def pipeline(config, exp, rep_index, base_output_dir):
     minerful_conf = exp.get("minerful", {})
     minerful_dir = ensure_dir(os.path.join(base_output_dir, "minerful"))
 
-    # Determinazione input XES
     explicit_file = minerful_conf.get("input_file")
     explicit_dir  = minerful_conf.get("input_directory")
 
     xes_files = []
 
-    # utente specifica un file
     if explicit_file:
         if not os.path.isfile(explicit_file):
-            raise FileNotFoundError(f"input_file non trovato: {explicit_file}")
+            raise FileNotFoundError(f"input_file not found: {explicit_file}")
         xes_files = [explicit_file]
 
-    # utente specifica una directory
     elif explicit_dir:
         if not os.path.isdir(explicit_dir):
-            raise NotADirectoryError(f"input_directory non valido: {explicit_dir}")
+            raise NotADirectoryError(f"input_directory not valid: {explicit_dir}")
         xes_files = sorted(
             str(p) for p in Path(explicit_dir).glob("*.xes")
         )
         if not xes_files:
-            raise ValueError(f"Nessun file .xes trovato in {explicit_dir}")
+            raise ValueError(f"No .xes files found in {explicit_dir}")
 
-    # nessun input → usa TUTTI i file generati dalla grounding
     else:
         if run_compound:
             xes_files = compound_xes_list
@@ -233,17 +234,15 @@ def pipeline(config, exp, rep_index, base_output_dir):
             xes_files = grounded_xes_list
 
         elif run_cleaning:
-            # cleaning produce solo 1 file, non liste
             xes_files = [cleaned_xes]
 
         else:
-            # fallback sugli event log originali
             xes_files = [event_xes]
 
     if not xes_files:
-        raise ValueError(f"Nessun file .xes trovato")
+        raise ValueError(f"No .xes files found")
 
-    print("File che verranno usati per MINERful:")
+    print("Files that will be used for MINERful:")
     for f in xes_files:
         print("  -", f)
 
@@ -256,18 +255,16 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
         for input_xes in xes_files:
 
-            input_csv = override.get("event_log_csv")  # come da tuo codice
+            input_csv = override.get("event_log_csv")  
 
 
             if not file_exists_and_not_none(input_csv):
-                # nessun override: usa i CSV prodotti dalla pipeline
                 potential_csv = str(Path(input_xes).with_suffix(".csv"))
                 
                 if os.path.exists(potential_csv):
                     input_csv = potential_csv
                 else:
-                    # Fallback di sicurezza se il file specifico non esiste
-                    print(f"[WARN] CSV specifico non trovato per {Path(input_xes).name}. Fallback su {cleaned_csv}")
+                    print(f"[WARN] Specific CSV not found for {Path(input_xes).name}. Fallback back on {cleaned_csv}")
                     input_csv = cleaned_csv
 
             
@@ -276,7 +273,6 @@ def pipeline(config, exp, rep_index, base_output_dir):
             output_xes_with_classifier = unique_file(
                 os.path.join(minerful_dir, f"classified_{stem}.xes")
             )
-            # Modifica consigliata per robustezza
             output_csv = unique_file(
                 os.path.join(minerful_dir, f"{stem}{minerful_conf.get('output_csv_suffix', '_minerful.csv')}")
             )
@@ -305,7 +301,79 @@ def pipeline(config, exp, rep_index, base_output_dir):
         print("MINERful skipped.")
 
 
+    # ----------------- TRAJECTORY CONSTRAINTS -----------------
+    tc_conf = exp.get("trajectory_constraints", {})
+    run_tc = pipeline_opts.get("run_traj_constraint", False)
+
+    if run_tc:
+        print("7) TRAJECTORY CONSTRAINTS")
+
+        explicit_file = tc_conf.get("input_file")
+        explicit_dir  = tc_conf.get("input_directory")
+
+        tc_csv_files = []
+
+        if explicit_file:
+            tc_csv_files = [explicit_file]
+
+        elif explicit_dir:
+            tc_csv_files = sorted(
+                str(p) for p in Path(explicit_dir).glob("*.csv")
+            )
+
+        else:
+            tc_csv_files = minerful_csv 
+
+        if not tc_csv_files:
+            raise ValueError("No CSV available for TC")
+
+        base_tc_output_dir = ensure_dir(os.path.join(base_output_dir, "problems_constraints"))
+
+        for csv_tc in tc_csv_files:
+            stem = Path(csv_tc).stem.replace("_minerful", "")
+            current_output_dir = ensure_dir(os.path.join(base_tc_output_dir, stem))
+
+            print(f"Applying constraints from: {Path(csv_tc).name}")
+            print(f"Output folder: {current_output_dir}")
+
+            apply_trajectory_constraints(
+                csv_path=csv_tc,
+                pddl_dir=exp["problems_dir"],
+                output_dir=current_output_dir
+            )
+
+    # ----------------- REVERSE MAPPING (NEW) -----------------
+    rev_conf = exp.get("reverse_mapping", {})
+    run_reverse = pipeline_opts.get("run_reverse_mapping", False)
+
+    if run_reverse:
+        print("8) REVERSE MAPPING (TC -> Declare)")
+        
+        explicit_file = rev_conf.get("input_file")
+        reverse_output_dir = ensure_dir(os.path.join(base_output_dir, "reverse_mapping"))
+
+        if explicit_file and os.path.exists(explicit_file):
+            print(f"Using explicit input file: {explicit_file}")
+            apply_reverse_mapping(
+                tc_csv_path=explicit_file,
+                output_dir=reverse_output_dir
+            )
+        
+        else:
+            base_tc_dir = Path(base_output_dir) / "problems_constraints"
+            tc_files = list(base_tc_dir.rglob("*.csv"))
+            
+            for tc_csv in tc_files:
+                if "recovered_declare" in tc_csv.name: continue
+                apply_reverse_mapping(
+                    tc_csv_path=tc_csv,
+                    output_dir=reverse_output_dir
+                )
+
+    
+
     #-----------------------------------------------
+
 
     print(f"Pipeline completed for run {rep_index}. Results in: {base_output_dir}\n")
     return {

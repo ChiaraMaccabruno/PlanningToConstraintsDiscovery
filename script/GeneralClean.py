@@ -5,6 +5,7 @@ from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 import datetime
 
 def puliziaEventLog(csvInput, csvOutput, xesOutput, cleaning_conf=None):
+    # Initialize configuration and cleaning options
     if cleaning_conf is None:
         cleaning_conf = {}
 
@@ -15,17 +16,17 @@ def puliziaEventLog(csvInput, csvOutput, xesOutput, cleaning_conf=None):
     remove_constant_columns = options["remove_constant_columns"]
 
 
-    # Load CSV file
+    # Load CSV file and handle missing values
     df = pd.read_csv(csvInput, sep=";", dtype=str,
                     keep_default_na=False, na_values=["nan", "NaN", ""])
     # replace missing values with empty string
     df = df.fillna("")  
 
-    # Rename the case ID column to standard PM4Py format if present
+    # Standardize the Case ID column for PM4Py compatibility
     if "case_id" in df.columns:
         df.rename(columns={"case_id": "case:concept:name"}, inplace=True)
 
-    # Remove columns with all empty values
+    # Remove columns that contain only empty values
     if remove_empty_columns:
         empty_cols = [c for c in df.columns if df[c].eq("").all()]
         if empty_cols:
@@ -33,7 +34,7 @@ def puliziaEventLog(csvInput, csvOutput, xesOutput, cleaning_conf=None):
             df.drop(columns=empty_cols, inplace=True)
 
 
-    # Remove redundant columns (columns with same values)
+    # Remove redundant columns (different columns with identical values)
     if remove_redundant_columns:
         cols = list(df.columns)
         redundant = set()
@@ -61,7 +62,7 @@ def puliziaEventLog(csvInput, csvOutput, xesOutput, cleaning_conf=None):
             print(f"Removing columns with constant values: {constant_cols}")
             df.drop(columns=constant_cols, inplace=True)
 
-
+    # Save the cleaned dataframe to a CSV file
     df.to_csv(csvOutput, sep=";", index=False, encoding="utf-8")
 
     df = dataframe_utils.convert_timestamp_columns_in_df(df)  

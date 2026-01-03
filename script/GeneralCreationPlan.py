@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 
 def translate_problem(domain_file, problem_file, base_output_dir, fast_downward_path):
+    # Setup directories and check if translation was already performed
     base = os.path.basename(problem_file).replace(".pddl", "")
     problem_dir = os.path.join(base_output_dir, base)
     os.makedirs(problem_dir, exist_ok=True)
@@ -30,6 +31,7 @@ def translate_problem(domain_file, problem_file, base_output_dir, fast_downward_
     print(f"\nTranslating {problem_file}")
     result = subprocess.run(cmd, cwd=problem_dir)
 
+    # Return None if translation fails
     if result.returncode != 0 or not os.path.exists(sas_file):
         print(f"Translation error for {problem_file}")
         return None
@@ -55,7 +57,7 @@ def run_search_for_problem(
 
     print(f"\nStarting searches for {problem_name}\n")
 
-    # Iterate over all search commands
+    # Iterate over all search commands provided in the settings
     for idx, cmd_str in enumerate(commands, 1):
         is_alias = "--alias" in cmd_str
 
@@ -73,8 +75,8 @@ def run_search_for_problem(
         local_sas = os.path.join(cmd_dir, "output.sas")
         shutil.copy(sas_file, local_sas)
 
-        # Build command differently for alias vs non-alias searches:
-        # alias can use --overall-time-limit; non-alias uses older r.113 method
+        # Build command differently for alias and non-alias searches:
+        # alias can use --overall-time-limit; 
         if is_alias:
             cmd_parts = [
                 fast_downward_path
@@ -111,7 +113,7 @@ def run_search_for_problem(
         t.daemon = True
         t.start()
 
-        # Timeout management: stop and go to the next command after around 800s
+        # Timeout management for non-alias searches: stop and go to the next command after around 800s
         start_time = time.time()
         timeout = time_limit_non_alias if not is_alias else None
 
@@ -145,6 +147,7 @@ def createPlans(
     fast_downward_path,
     planning_conf,
 ):
+    # Initialize configuration
     commands = planning_conf["commands"]
     max_workers = planning_conf["max_workers"]
     run_alias = planning_conf["run_alias"]
@@ -191,7 +194,7 @@ def createPlans(
                 time_limit_alias,
                 time_limit_non_alias
             ))
-
+        # Wait for all parallel planning tasks to finish
         for f in futures:
             f.result()
 

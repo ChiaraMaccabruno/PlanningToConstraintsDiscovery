@@ -12,6 +12,7 @@ def aggregateColumns(
     output_prefix,
     grounding_conf = None
 ):
+    # Initialize configuration
     if grounding_conf is None:
         grounding_conf = {}
 
@@ -23,13 +24,11 @@ def aggregateColumns(
     activity_col = grounding_conf["activity_column"]
     aggregations = grounding_conf["aggregations"]
 
-
+    # Load the CSV file
     original_df = pd.read_csv(input_csv, sep=sep, dtype=str, keep_default_na=False)
     original_df = original_df.fillna("")
 
-    # ---------------------------
-    # RINOMINA PER PM4PY
-    # ---------------------------
+    # Map custom column names to standard Process Mining attributes (Case ID, Activity, Timestamp)
     rename_map = {
         plan_col: "case:concept:name",
         activity_col: "concept:name",
@@ -38,15 +37,12 @@ def aggregateColumns(
 
     original_df = original_df.rename(columns=rename_map)
 
-    # Aggiorna anche le aggregazioni
+    # Synchronization aggregation columns with new names
     for agg in aggregations:
         agg["columns"] = [rename_map.get(c, c) for c in agg["columns"]]
 
  
-
-    # ---------------------------
-    # ESECUZIONE DI TUTTE LE AGGREGAZIONI
-    # ---------------------------
+    # Iterate through each aggregation
     for agg in aggregations:
         name = agg["name"]
         cols = agg["columns"]
@@ -55,30 +51,31 @@ def aggregateColumns(
 
         df = original_df.copy()
 
+        # Check if all required columns for this aggregation exist
         missing = [c for c in cols if c not in df.columns]
         if missing:
-            print(f"[WARNING] Aggregation '{name}' skipped. Missing columns: {missing}")
+            print(f"Aggregation '{name}' skipped. Missing columns: {missing}")
             continue
 
         print(f"[GROUNDING] Aggregating: {name} -> {cols}")
 
         if "concept:name" in cols:
             name = "concept:name"
-        # Nuova colonna aggregata
+
+        # Create the new aggregated column by joining values with an underscore
         df[name] = df.apply(
             lambda row: "_".join(
                 str(row[c]).strip() for c in cols if str(row[c]).strip() != ""
             ),
             axis=1
         )
-        
 
-        # Posizioniamo la nuova colonna vicino alla prima colonna aggregata
+        # Position the new aggregated column
         first_idx = df.columns.get_loc(cols[0])
         col_values = df.pop(name)
         df.insert(first_idx, name, col_values)
 
-        # Rimozione colonne originali 
+        # Remove original columns if specified
         if drop_original:
             for c in cols:
                 if c not in ("case:concept:name", "time:timestamp", "event_id", "concept:name"):
@@ -86,7 +83,7 @@ def aggregateColumns(
                         df.drop(columns=[c], inplace=True)
 
 
-
+        # Reorder columns
         order = ["case:concept:name", "event_id", "time:timestamp", "concept:name"]
         other_cols = [c for c in df.columns if c not in order]
         df = df[order + other_cols]

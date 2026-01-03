@@ -7,26 +7,33 @@ from pm4py.objects.log.util import dataframe_utils
 from pm4py.objects.conversion.log import converter as log_converter
 from pm4py.objects.log.exporter.xes import exporter as xes_exporter
 
-
+# Checks if a parameter name is generic (e.g., a, b, obj1, var2, p3, etc.)
 def is_generic_name(name):
     return (len(name) <= 2 and name.isalpha()) or re.match(r"(obj|var|p)\d*", name)
 
+# This function transforms a plan action into a set of extra attributes based on a user-defined mapping configuration.
 def apply_activity_mapping(activity, data, activity_mapping):
     mapped = {}
 
+    # If the current activity has no defined mapping, no extra attributes are added
     if activity not in activity_mapping:
         return mapped
 
+    # List of fields to be populated using action parameters
     fields = activity_mapping[activity].get("fields", [])
+    # Fields with fixed values, identical for every occurrence of the activity
     static_fields = activity_mapping[activity].get("static", {})
 
-    values = list(data.values())[1:]  # esclude "activity"
+    # Excludes the first value because it corresponds to the activity name
+    values = list(data.values())[1:]  
 
+    # Map each parameter to its corresponding field
     for field_name, value in zip(fields, values):
-        if field_name != "_":       # "_" significa ignorare quel parametro
+        # "_" indicates the parameter should be ignored
+        if field_name != "_":       
             mapped[field_name] = value
 
-    # aggiunge campi statici
+    # Add static fields (fields that not depend on the action parameters)
     for k, v in static_fields.items():
         mapped[k] = v
 
@@ -40,6 +47,7 @@ def parse_domain(domain_file):
 
     actions = {}
 
+    # Regex to find PDDL actions and their parameters
     pattern = r"\(:action\s+([\w-]+).*?:parameters\s*\((.*?)\)"
     for action, params_block in re.findall(pattern, text, re.DOTALL):
         params_block = params_block.strip()
@@ -63,17 +71,15 @@ def parse_domain(domain_file):
             base = name
             count[base] = count.get(base, 0) + 1
 
-        # Track occurrences to handle repeated parameters
+        # Handle duplicate parameters (base_1, base_2, ...)
         occurrence = {}
         for name, ptype in extracted_params:
             base = name
             occurrence[base] = occurrence.get(base, 0) + 1
 
-            # If parameter occurs only once, keep its name as is
             if count[base] == 1:
                 new_name = base
             else:
-                # If multiple parameters have the same base, append _1, _2, ...
                 new_name = f"{base}_{occurrence[base]}"
 
             final_params.append((new_name, ptype))
@@ -83,11 +89,12 @@ def parse_domain(domain_file):
 
     return actions
 
-
+# Converts a line of plan into an event dictionary
 def parse_plan_line(line, actions_def):
     tokens = line.strip("() ").lower().split()
     activity, values = tokens[0], tokens[1:]
 
+    # Check if the action exists in the domain
     if activity not in actions_def:
         raise ValueError(f"Action '{activity}' not found in the domain")
 
@@ -98,7 +105,7 @@ def parse_plan_line(line, actions_def):
             f"Parameter mismatch in '{activity}': expected {len(expected_params)}, "
             f"found {len(values)} → {values}"
         )
-
+    # Build the event dictionary
     data = {"activity": activity}
     for (name, _), val in zip(expected_params, values):
         data[name] = val
@@ -108,6 +115,7 @@ def parse_plan_line(line, actions_def):
 
 
 def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes, eventlog_conf=None):
+    # Initialize configuration
     if eventlog_conf is None:
         eventlog_conf = {}
     
@@ -140,6 +148,7 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes, even
 
     print("\nReading plans...")
 
+    # Recursive scan of plan files
     for root, dirs, files in os.walk(root_plans_dir):
         dirs.sort()
         for file in sorted(files):
@@ -215,10 +224,8 @@ def generate_event_log(domain_file, root_plans_dir, output_csv, output_xes, even
     for r in rows:
         all_cols.update(r.keys())
 
-    # Rimuovi le colonne già presenti in `order` e prendi un ordine stabile (sorted)
     other_cols = sorted([c for c in all_cols if c not in order])
 
-    # Fieldnames finali per il CSV
     fieldnames = order + other_cols
 
     print("\nWriting CSV...")

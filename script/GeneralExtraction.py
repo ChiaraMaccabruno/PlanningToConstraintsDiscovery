@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from pathlib import Path
 
+# Convertion of numeric attributes (float/int) to strings and replace 'NaN' or null values with an empty string
 def clean_numeric_fields_in_xes(input_file, output_file):
     tree = ET.parse(input_file)
     root = tree.getroot()
@@ -23,7 +24,7 @@ def clean_numeric_fields_in_xes(input_file, output_file):
     tree.write(output_file, encoding="utf-8", xml_declaration=True)
     return output_file
 
-
+# Injects a classifier into the XES log
 def add_classifier_to_xes(input_file, output_file, name, keys):
     # Parse the original XES file into an XML tree
     tree = ET.parse(input_file)
@@ -43,18 +44,6 @@ def add_classifier_to_xes(input_file, output_file, name, keys):
     # Insert classifier as the first child of the root element
     root.insert(0, classifier_elem)
 
-    # Sostituisci tutti i NaN nei float/int con stringa vuota
-    #for elem in root.iter():
-        # controlla solo float e int
-   #     if elem.tag.endswith('float') or elem.tag.endswith('int'):
-    #        val = elem.get('value')
-    #        if val is None or val.lower() == 'nan':
-                # se è NaN o vuoto, sostituisci con stringa vuota
-    #            elem.set('value', '')
-            # cambia il tag da float/int a string
-    #        elem.tag = elem.tag.replace('float', 'string').replace('int', 'string')
-
-
     tree.write(output_file, encoding="utf-8", xml_declaration=True)
     print(f"New XES file created with classifier: {output_file}")
     return output_file
@@ -69,18 +58,15 @@ def extraction(
     output_json,
     minerful_conf
 ):
-    # ---------------------------
-    # 1) Validazione input
-    # ---------------------------
+
+    # Input Validation
     if not os.path.exists(input_xes):
         raise FileNotFoundError(f"[Extraction ERROR] Input XES not found: {input_xes}")
 
     if not os.path.exists(input_csv):
         raise FileNotFoundError(f"[Extraction ERROR] Input CSV not found: {input_csv}")
 
-    # ---------------------------
-    # 2) Leggere configurazione
-    # ---------------------------
+    # Configuration Setup
     sep = minerful_conf.get("csv_separator", ";")
     use_classifier = minerful_conf.get("use_classifier", False)
     classifier_name = minerful_conf.get("classifier_name", "activityClassifier")
@@ -99,9 +85,7 @@ def extraction(
     output_dir = minerful_conf.get("output_dir", "minerful")
     os.makedirs(output_dir, exist_ok=True)
 
-    # ---------------------------
-    # 3) Normalizzazione XES
-    # ---------------------------
+    # XES Normalization
     cleaned_xes = os.path.join(
         output_dir,
         os.path.basename(input_xes).replace(".xes", "_cleaned.xes")
@@ -109,9 +93,7 @@ def extraction(
 
     clean_numeric_fields_in_xes(input_xes, cleaned_xes)
 
-    # ---------------------------
-    # 4) Classifier (opzionale)
-    # ---------------------------
+    # If enabled, use the XES classifier to group events by custom keys
     if use_classifier:
         final_xes = output_xes_with_classifier
         add_classifier_to_xes(cleaned_xes, final_xes, classifier_name, classifier_keys)
@@ -120,15 +102,11 @@ def extraction(
         final_xes = cleaned_xes
         classifier_flag = []
 
-    # ---------------------------
-    # 5) Caricare CSV per validazione
-    # ---------------------------
+    # Load CSV
     df = pd.read_csv(input_csv, sep=sep, dtype=str, keep_default_na=False)
     df = df.fillna("")
 
-    # ---------------------------
-    # 6) Preparazione comando MINERful
-    # ---------------------------
+    # # Build the MINERful Java command to run the MINERful JAR file
     if not os.path.exists(jar_path):
         raise FileNotFoundError(f"MINERful.jar not found at: {jar_path}")
 

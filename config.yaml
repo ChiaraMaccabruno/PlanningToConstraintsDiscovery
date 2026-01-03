@@ -1,20 +1,54 @@
+# =============================================================================
+# CONFIGURATION FILE
+# =============================================================================
+# THIS IS THE MAIN FILE TO MODIFY IN ORDER TO USE THE PIPELINE.
+#
+# COMPLETE PIPELINE FLOW:
+# 1. PDDL plan generation
+# 2. Conversion of plans into Event Logs
+# 3. Log cleaning
+# 4. Activity grounding
+# 5. Creation of compound events
+# 6. Constraint discovery (MINERful)
+# 7. Trajectory Constraints discovery
+#
+# Each phase DEPENDS on the previous one.
+# If a phase is skipped, you must explicitly provide the output of the previous phase.
+#
+#
+# 1) Define an experiment in `experiments`
+# 2) Decide which phases to execute in `pipeline_options`
+# 3) If you skip a phase, use `input_override`
+# 4) Carefully configure the `eventlog` section
+# 5) Check that column names are consistent THROUGHOUT the file
+
+
 experiments:
 #  - name: "agricola"
 #    domain_file: "Agricola/domain.pddl"
 #    problems_dir: "Agricola/problems/"
 #    repeat: 1
 
-  - name: "rovers"
-    domain_file: "Rovers/StripsRover.pddl"
-    problems_dir: "Rovers/"
-    repeat: 1
+  - name: "rovers"                              # Unique identifier of the experiment.
+    domain_file: "Rovers/StripsRover.pddl"      # Path to the PDDL domain file.
+    problems_dir: "Rovers/"                     # Folder containing the problem (.pddl) files
+    repeat: 1                                   # Number of times to repeat the execution
     # --------------------------------
     # INPUT OVERRIDE
     # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
     input_override:
       plans_dir: "results/rovers/run_1/plans"
-      event_log_csv: null
-      event_log_xes: null
+      event_log_csv: "results/rovers/run_1/eventlog/event_log_Rovers.csv"
+      event_log_xes: "results/rovers/run_1/eventlog/event_log_Rovers.xes"
       cleaned_csv: null
       cleaned_xes: null
       grounded_csv: null
@@ -24,29 +58,43 @@ experiments:
 
 
     # --------------------------------
-    # per eseguire fasi
+    # phases execution
     # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
     pipeline_options:
       run_create_plans: false
       run_remove_duplicates: false
       run_event_log: true
       run_cleaning: false
       run_grounding: true
-      run_compound: true
+      run_compound: false
       run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
 
 
     # --------------------------------
-    # parametri per creazione piani
+    # plan generation parameters
     # --------------------------------
+    #
+    # Fast Downward solver configuration
+    #
     planning:
-      run_alias: true
-      run_non_alias: true
-      time_limit_alias: "800s"
-      time_limit_non_alias: 800
-      max_workers: 6
+      run_alias: true               # Enable predefined configurations (e.g., LAMA).
+      run_non_alias: true           # Enable configurations based on manual combinations of search algorithms and heuristics
+      time_limit_alias: "800s"      # Time limit for predefined configurations
+      time_limit_non_alias: 800     # Time limit for manual configurations
+      max_workers: 6                # Number of parallel worker processes
 
-      # Lista completa dei comandi configurabili:
+      # Complete list of configurable commands:
       commands:
         - "--search astar(hmax())"
         - "--search astar(lmcut())"
@@ -68,37 +116,51 @@ experiments:
 
     # --------------------------------
 
-    eventlog:
-      # Timestamp iniziale del primo evento 
-      start_timestamp: "2025-01-01T00:00:00"
-      # Incremento tra gli eventi in secondi
-      increment_seconds: 1
-      # Separatore CSV (può essere ; o ,)
-      csv_delimiter: ";"
+    eventlog: 
+      start_timestamp: "2025-01-01T00:00:00"    # Initial timestamp of the first event
+      increment_seconds: 1                      # Time increment between events (in seconds)
+      csv_delimiter: ";"                        # CSV separator (; or ,)
       column_names:
-        case_id: "case_id"      # default 
-        event_id: "event_id"    # default 
+        case_id: "case_id"      # default (Trace ID, corresponds to a plan)
+        event_id: "event_id"    # default (Event ID)
         timestamp: "timestamp"  # default 
-        extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
+        # Additional columns derived from PDDL action parameters
+        # MUST be consistent with activity_mapping
+        extra_columns:          
           - "actor"
           - "store"
           - "objective"
+          - "camera"
+          - "mode"
+          - "receiver"
           - "waypoint_1"
           - "waypoint_2"
           - "waypoint_3"
-        #  - "objective"
+
         #  - "location"
         #  - "priority"
 
-      # File di output (se l'utente vuole specificarlo)
-      output_csv: null        # es. "results/event_log.csv"
-      output_xes: null        # es. "results/event_log.xes"
+      # Output files (if the user wants to specify them)
+      output_csv: null        # e.g., "results/event_log.csv"
+      output_xes: null        # e.g., "results/event_log.xes"
+
+      #
+      # This section specifies:
+      # - how to interpret PDDL action parameters
+      # - how to fill the event log columns
+      #
+      # 1) The order in `fields` MUST match the order of the PDDL action parameters
+      # 2) All columns used in `fields` MUST be declared in `extra_columns`
+      # 3) 'static' is optional and is used to add fixed attributes to the event
+      #
+      # Structure:
+      # domain:
+      #   action:
+      #     fields: [ordered list of columns]
+      #     static: { constant attributes }
 
       activity_mapping:
 
-        # -------------------------
-        # DOMAIN: ROVERS
-        # -------------------------
         rovers:
           navigate:
             fields: ["actor", "waypoint_1", "waypoint_2"]
@@ -115,21 +177,21 @@ experiments:
             fields: ["actor", "store"]
 
           calibrate:
-            fields: ["actor", "_", "objective", "waypoint_1"]
+            fields: ["actor", "camera", "objective", "waypoint_1"]
 
           take_image:
-            fields: ["actor", "waypoint_1", "objective", "_", "_"]
+            fields: ["actor", "waypoint_1", "objective", "camera", "mode"]
 
           communicate_soil_data:
-            fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+            fields: ["actor", "receiver", "waypoint_1", "waypoint_2", "waypoint_3"]
             static: { object_type: "soil" }
 
           communicate_rock_data:
-            fields: ["actor", "_", "waypoint_1", "waypoint_2", "waypoint_3"]
+            fields: ["actor", "receiver", "waypoint_1", "waypoint_2", "waypoint_3"]
             static: { object_type: "rock" }
 
           communicate_image_data:
-            fields: ["actor", "_", "objective", "_", "waypoint_1", "waypoint_2"]
+            fields: ["actor", "receiver", "objective", "mode", "waypoint_1", "waypoint_2"]
             static: { object_type: "image" }
 
 
@@ -137,40 +199,49 @@ experiments:
     # --------------------------------
     # GROUNDING
     # --------------------------------
+    # Creates aggregations among user-specified columns
     grounding:
-      enabled: true
       csv_separator: ";"
-      drop_original_columns: true
-      plan_column: "case_id"
-      timestamp_column: "timestamp"
-      activity_column: "activity"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
       output_prefix: "grounded_event_log"
 
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
       aggregations:
-        - name: "activity_actor"
-          columns: ["activity", "actor"]
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
 
-        - name: "store_actor_objective"
-          columns: ["store", "actor","objective"]
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "prova_prova"
+          columns: ["activity"]
 
 
 
     # --------------------------------
     # COMPOUND
     # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
     compound:
-      enabled: true
       csv_separator: ";"
       
-      # Nomi delle colonne nel FILE DI INPUT (CSV)
-      # Se il file viene da GeneralCreationEventLog, usa case_id / timestamp / activity
-      case_column: "case_id"       
-      timestamp_column: "timestamp"
-      activity_column: "activity"  
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
 
-      # Opzionale: Lista delle 'basi' delle colonne da unire.
-      # Es: se hai waypoint_1, waypoint_2 e vuoi unire solo quelli, scrivi ["waypoint"].
-      # Se lasciato vuoto o commentato, lo script cercherà AUTOMATICAMENTE tutte le colonne numerate (col_1, col_2...)
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
       columns: []  
 
 
@@ -179,32 +250,38 @@ experiments:
     # CLEANING
     # --------------------------------
     cleaning:
-      enabled: true
-      method: "general"      # oppure "none", o altri metodi futuri
+      # cleaning method
+      method: "general"      
 
-      # Opzioni attivabili/disattivabili dall'utente
+      # User-enabled/disabled options
       options:
-        remove_empty_columns: true
-        remove_redundant_columns: true
-        remove_constant_columns: true
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
 
 
 
     # --------------------------------
     # MINERFUL
     # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
     minerful:
-      enabled: true
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
 
-      xmx_memory: "8096m"
-
-      input_file: ""          # opzionale
-      input_directory: ""     # opzionale
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
 
       output_csv_suffix: "_minerful.csv"
       output_json_suffix: "_minerful.json"
+      
 
       csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
       use_classifier: false
       classifier_name: "activityClassifier"
       classifier_keys: "objective"
@@ -212,22 +289,43 @@ experiments:
       support: 0.05
       confidence: 1.0
       coverage: 0.05
+      # Constraint pruning strategy
       pruning_strategy: "hierarchyconflictredundancy"
 
+      # DO NOT modify
       minerful_jar: "MINERful/MINERful.jar"
       minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
+
 
   - name: "driverlog"
     domain_file: "DriverLog/driverlog.pddl"
     problems_dir: "DriverLog/"
-    repeat: 2
+    repeat: 1
     # --------------------------------
     # INPUT OVERRIDE
     # --------------------------------
     input_override:
       plans_dir: "results/driverlog/run_1/plans"
-      event_log_csv: null
-      event_log_xes: null
+      event_log_csv: "results/driverlog/run_1/eventlog/event_log_DriverLog.csv"
+      event_log_xes: "results/driverlog/run_1/eventlog/event_log_DriverLog.xes"
       cleaned_csv: null
       cleaned_xes: null
       grounded_csv: null
@@ -237,20 +335,21 @@ experiments:
 
 
     # --------------------------------
-    # per eseguire fasi
+    # phases execution
     # --------------------------------
     pipeline_options:
       run_create_plans: false
       run_remove_duplicates: false
-      run_event_log: true
+      run_event_log: false
       run_cleaning: false
       run_grounding: true
       run_compound: false
       run_minerful: true
+      run_traj_constraint: true
 
 
     # --------------------------------
-    # parametri per creazione piani
+    # plan generation parameters
     # --------------------------------
     planning:
       run_alias: true
@@ -259,7 +358,7 @@ experiments:
       time_limit_non_alias: 800
       max_workers: 6
 
-      # Lista completa dei comandi configurabili:
+      # Complete list of configurable commands:
       commands:
         - "--search astar(hmax())"
         - "--search astar(lmcut())"
@@ -282,17 +381,17 @@ experiments:
     # --------------------------------
 
     eventlog:
-      # Timestamp iniziale del primo evento 
+      # Initial timestamp of the first event 
       start_timestamp: "2025-01-01T00:00:00"
-      # Incremento tra gli eventi in secondi
+      # Time increment between events (in seconds)
       increment_seconds: 1
-      # Separatore CSV (può essere ; o ,)
+      # CSV separator (; or ,)
       csv_delimiter: ";"
       column_names:
         case_id: "case_id"      # default 
         event_id: "event_id"    # default 
         timestamp: "timestamp"  # default 
-        extra_columns:          # Colonne aggiuntive opzionali definite dall'utente
+        extra_columns:          # Optional user-defined additional columns
           - "activity"
           - "driver"
           - "truck"
@@ -303,16 +402,13 @@ experiments:
         #  - "location"
         #  - "priority"
 
-      # File di output (se l'utente vuole specificarlo)
-      output_csv: null        # es. "results/event_log.csv"
-      output_xes: null        # es. "results/event_log.xes"
+      # Output files (if the user wants to specify them)
+      output_csv: null        # e.g., "results/event_log.csv"
+      output_xes: null        # e.g., "results/event_log.xes"
 
       activity_mapping:
 
         
-        # -------------------------
-        # DOMAIN: DRIVERLOG
-        # -------------------------
         driverlog:
           load-truck:
             fields: ["object", "truck", "loc_from"]
@@ -337,7 +433,6 @@ experiments:
     # GROUNDING
     # --------------------------------
     grounding:
-      enabled: true
       csv_separator: ";"
       drop_original_columns: true
       plan_column: "case_id"
@@ -346,11 +441,8 @@ experiments:
       output_prefix: "grounded_event_log"
 
       aggregations:
-        - name: "concept_driver"
-          columns: ["activity", "driver"]
-
-        - name: "concept_driver_t"
-          columns: ["activity", "driver", "truck"]
+        - name: "concept_object"
+          columns: ["activity", "object"]
 
       # - name: "store_actor_objective"
       #   columns: ["store", "actor","objective"]
@@ -361,20 +453,13 @@ experiments:
     # COMPOUND
     # --------------------------------
     compound:
-      enabled: true
       csv_separator: ";"
       
-      # Nomi delle colonne nel FILE DI INPUT (CSV)
-      # Se il file viene da GeneralCreationEventLog, usa case_id / timestamp / activity
       case_column: "case_id"       
       timestamp_column: "timestamp"
       activity_column: "activity"  
 
-      # Opzionale: Lista delle 'basi' delle colonne da unire.
-      # Es: se hai waypoint_1, waypoint_2 e vuoi unire solo quelli, scrivi ["waypoint"].
-      # Se lasciato vuoto o commentato, lo script cercherà AUTOMATICAMENTE tutte le colonne numerate (col_1, col_2...)
       columns: ["loc_from", "loc_to"]  
-
 
 
 
@@ -382,10 +467,9 @@ experiments:
     # CLEANING
     # --------------------------------
     cleaning:
-      enabled: true
-      method: "general"      # oppure "none", o altri metodi futuri
+      method: "general"      
 
-      # Opzioni attivabili/disattivabili dall'utente
+      # User-enabled/disabled options
       options:
         remove_empty_columns: true
         remove_redundant_columns: true
@@ -397,12 +481,11 @@ experiments:
     # MINERFUL
     # --------------------------------
     minerful:
-      enabled: true
 
       xmx_memory: "8096m"
 
-      input_file: ""          # opzionale
-      input_directory: ""     # opzionale
+      input_file: ""          # optional
+      input_directory: ""     # optional
 
       output_csv_suffix: "_minerful.csv"
       output_json_suffix: "_minerful.json"
@@ -412,19 +495,30 @@ experiments:
       classifier_name: "activityClassifier"
       classifier_keys: "objective"
 
-      support: 0.06
+      support: 0.05
       confidence: 1.0
-      coverage: 0.06
+      coverage: 0.05
       pruning_strategy: "hierarchyconflictredundancy"
 
       minerful_jar: "MINERful/MINERful.jar"
       minerful_lib: "MINERful/lib/*"
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""        # optional
+      input_directory: ""   # optional
+      output_folder_suffix: "_with_constraints"
 
 
 
 # --------------------------------
 # OUTPUT DIRS
 # --------------------------------
+# Folders where the pipeline results will be saved.
+# base_dir: main directory; all output subfolders and files
 output_dirs:
   base_dir: "results/"
 
@@ -432,6 +526,8 @@ output_dirs:
 # --------------------------------
 # FAST DOWNWARD
 # --------------------------------
+# Configuration for the PDDL solver Fast Downward.
+# path           → full path to the fast-downward.py script
 fast_downward:
   path: "/home/chiara_maccabruno/progetto/downward/fast-downward.py"
   timeout_seconds: 300
