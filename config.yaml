@@ -29,10 +29,10 @@ experiments:
 #    problems_dir: "Agricola/problems/"
 #    repeat: 1
 
-  - name: "rovers"                              # Unique identifier of the experiment.
+  - name: "rovers1"                              # Unique identifier of the experiment.
     domain_file: "Rovers/StripsRover.pddl"      # Path to the PDDL domain file.
     problems_dir: "Rovers/"                     # Folder containing the problem (.pddl) files
-    repeat: 1                                   # Number of times to repeat the execution
+    repeat: 1                                  # Number of times to repeat the execution
     # --------------------------------
     # INPUT OVERRIDE
     # --------------------------------
@@ -47,8 +47,8 @@ experiments:
     # - If a phase is enabled, any override will be IGNORED
     input_override:
       plans_dir: "results/rovers/run_1/plans"
-      event_log_csv: "results/rovers/run_1/eventlog/event_log_Rovers.csv"
-      event_log_xes: "results/rovers/run_1/eventlog/event_log_Rovers.xes"
+      event_log_csv: null
+      event_log_xes: null
       cleaned_csv: null
       cleaned_xes: null
       grounded_csv: null
@@ -73,7 +73,7 @@ experiments:
       run_create_plans: false
       run_remove_duplicates: false
       run_event_log: true
-      run_cleaning: false
+      run_cleaning: true
       run_grounding: true
       run_compound: false
       run_minerful: true
@@ -219,7 +219,7 @@ experiments:
         #- name: "store_actor_objective"
         #  columns: ["store", "actor","objective"]
 
-        - name: "prova_prova"
+        - name: "aggr2"
           columns: ["activity"]
 
 
@@ -251,13 +251,19 @@ experiments:
     # --------------------------------
     cleaning:
       # cleaning method
-      method: "general"      
+      method: "general"   
+
+      csv_separator: ";"   
 
       # User-enabled/disabled options
       options:
         remove_empty_columns: true              # Remove completely empty columns
         remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
         remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
 
 
 
@@ -286,9 +292,9 @@ experiments:
       classifier_name: "activityClassifier"
       classifier_keys: "objective"
 
-      support: 0.05
+      support: 0.02
       confidence: 1.0
-      coverage: 0.05
+      coverage: 0.02
       # Constraint pruning strategy
       pruning_strategy: "hierarchyconflictredundancy"
 
@@ -315,7 +321,294 @@ experiments:
       output_folder_suffix: "reverse_mapping"
 
 
-  - name: "driverlog"
+  - name: "agricola1"                              # Unique identifier of the experiment.
+    domain_file: "agricola/domain.pddl"      # Path to the PDDL domain file.
+    problems_dir: "agricola/"                     # Folder containing the problem (.pddl) files
+    repeat: 1                                   # Number of times to repeat the execution
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
+    input_override:
+      plans_dir: "results/agricola/run_1/plans"
+      event_log_csv: null
+      event_log_xes: null
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # phases execution
+    # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: true
+      run_cleaning: true
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
+
+
+    # --------------------------------
+    # plan generation parameters
+    # --------------------------------
+    #
+    # Fast Downward solver configuration
+    #
+    planning:
+      run_alias: true               # Enable predefined configurations (e.g., LAMA).
+      run_non_alias: true           # Enable configurations based on manual combinations of search algorithms and heuristics
+      time_limit_alias: "800s"      # Time limit for predefined configurations
+      time_limit_non_alias: 800     # Time limit for manual configurations
+      max_workers: 6                # Number of parallel worker processes
+
+      # Complete list of configurable commands:
+      commands:
+        - "--search astar(hmax())"
+        - "--search astar(lmcut())"
+        - "--search eager_greedy([ff()])"
+        - "--search eager_greedy([add()])"
+        - "--search eager_wastar([add()],w=5)"
+        - "--search eager_wastar([ff()],w=5)"
+        - "--search lazy_greedy([ff()])"
+        - "--search lazy_greedy([cg()])"
+        - "--search lazy_wastar([ff()],w=5)"
+        - "--search lazy_wastar([cg()],w=5)"
+        - "--search ehc(ff())"
+        - "--alias lama"
+        - "--alias seq-sat-lama-2011"
+        - "--alias seq-sat-fdss-2023"
+        - "--alias seq-sat-fdss-2018"
+        - "--alias seq-sat-fd-autotune-1"
+        - "--alias seq-sat-fd-autotune-2"
+
+    # --------------------------------
+
+    eventlog: 
+      start_timestamp: "2025-01-01T00:00:00"
+      increment_seconds: 1
+      csv_delimiter: ";"
+      column_names:
+        case_id: "case_id"
+        event_id: "event_id"
+        timestamp: "timestamp"
+        extra_columns:
+          - "worker_1"
+          - "worker_2"
+          - "worker_max"
+          - "round"
+          - "stage"
+          - "resource"
+          - "animal"
+          - "vegetable"
+          - "action_tag"
+          - "improvement"
+          - "num_val_1"
+          - "num_val_2"
+          - "num_val_3"
+
+      activity_mapping:
+        agricola:
+          take_food:
+            fields: ["worker_1", "worker_2", "worker_max", "round", "num_val_1", "num_val_2"]
+          
+          plow_field:
+            fields: ["worker_1", "worker_2", "worker_max", "round"]
+          
+          take_grain:
+            fields: ["worker_1", "worker_2", "worker_max", "round", "vegetable"]
+          
+          build_fences:
+            fields: ["animal", "worker_1", "worker_2", "worker_max", "round"]
+          
+          collect_animal:
+            fields: ["animal", "action_tag", "worker_1", "worker_2", "worker_max", "round"]
+          
+          collect_resource:
+            fields: ["worker_1", "worker_2", "worker_max", "round", "action_tag", "resource"]
+          
+          build_room:
+            fields: ["worker_1", "worker_2", "worker_max", "worker_new", "round", "resource"] 
+          
+          improve_home:
+            fields: ["worker_1", "worker_2", "worker_max", "round", "improvement"]
+          
+          sow:
+            fields: ["worker_1", "worker_2", "worker_max", "round", "vegetable"]
+
+          ag__finish_round_backhome:
+            fields: ["round", "worker_max"]
+          
+          ag__finish_round_renew:
+            fields: ["round", "worker_1"]
+          
+          ag__advance_round_normal:
+            fields: ["round", "num_val_1", "action_tag"] 
+          
+          ag__harvest_collecting_veg:
+            fields: ["round", "stage", "vegetable", "num_val_1", "num_val_2", "num_val_3"]
+          
+          ag__harvest_feed:
+            fields: ["round", "stage", "worker_max", "num_val_1", "num_val_2", "num_val_3"]
+          
+          ag__harvest_breeding_animal:
+            fields: ["round", "stage", "animal", "num_val_1", "num_val_2"]
+            
+          ag__finish_stage:
+            fields: ["stage", "num_val_1", "round", "num_val_2", "action_tag"] 
+
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    # Creates aggregations among user-specified columns
+    grounding:
+      csv_separator: ";"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+      output_prefix: "grounded_event_log"
+
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
+      aggregations:
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
+
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "aggr1"
+          columns: ["activity"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
+    compound:
+      csv_separator: ";"
+      
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      # cleaning method
+      method: "general"   
+
+      csv_separator: ";"   
+
+      # User-enabled/disabled options
+      options:
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
+    minerful:
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
+
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+      
+
+      csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.02
+      confidence: 1.0
+      coverage: 0.02
+      # Constraint pruning strategy
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      # DO NOT modify
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
+
+
+  - name: "driverlog1"
     domain_file: "DriverLog/driverlog.pddl"
     problems_dir: "DriverLog/"
     repeat: 1
@@ -324,8 +617,8 @@ experiments:
     # --------------------------------
     input_override:
       plans_dir: "results/driverlog/run_1/plans"
-      event_log_csv: "results/driverlog/run_1/eventlog/event_log_DriverLog.csv"
-      event_log_xes: "results/driverlog/run_1/eventlog/event_log_DriverLog.xes"
+      event_log_csv: null
+      event_log_xes: null
       cleaned_csv: null
       cleaned_xes: null
       grounded_csv: null
@@ -340,12 +633,13 @@ experiments:
     pipeline_options:
       run_create_plans: false
       run_remove_duplicates: false
-      run_event_log: false
-      run_cleaning: false
+      run_event_log: true
+      run_cleaning: true
       run_grounding: true
       run_compound: false
       run_minerful: true
       run_traj_constraint: true
+      run_reverse_mapping: true
 
 
     # --------------------------------
@@ -409,6 +703,9 @@ experiments:
       activity_mapping:
 
         
+        # -------------------------
+        # DOMAIN: DRIVERLOG
+        # -------------------------
         driverlog:
           load-truck:
             fields: ["object", "truck", "loc_from"]
@@ -441,8 +738,8 @@ experiments:
       output_prefix: "grounded_event_log"
 
       aggregations:
-        - name: "concept_object"
-          columns: ["activity", "object"]
+        - name: "aggr1"
+          columns: ["activity"]
 
       # - name: "store_actor_objective"
       #   columns: ["store", "actor","objective"]
@@ -455,10 +752,15 @@ experiments:
     compound:
       csv_separator: ";"
       
+      # Column names in the INPUT FILE (CSV)
+      # If the file comes from GeneralCreationEventLog, use case_id / timestamp / activity
       case_column: "case_id"       
       timestamp_column: "timestamp"
       activity_column: "activity"  
 
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
       columns: ["loc_from", "loc_to"]  
 
 
@@ -467,7 +769,9 @@ experiments:
     # CLEANING
     # --------------------------------
     cleaning:
-      method: "general"      
+      method: "general"      # or "none", or other future methods
+
+      csv_separator: ";"
 
       # User-enabled/disabled options
       options:
@@ -475,6 +779,9 @@ experiments:
         remove_redundant_columns: true
         remove_constant_columns: true
 
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
 
 
     # --------------------------------
@@ -495,9 +802,9 @@ experiments:
       classifier_name: "activityClassifier"
       classifier_keys: "objective"
 
-      support: 0.05
+      support: 0.02
       confidence: 1.0
-      coverage: 0.05
+      coverage: 0.02
       pruning_strategy: "hierarchyconflictredundancy"
 
       minerful_jar: "MINERful/MINERful.jar"
@@ -511,6 +818,894 @@ experiments:
       input_file: ""        # optional
       input_directory: ""   # optional
       output_folder_suffix: "_with_constraints"
+
+
+
+  - name: "sepsis1"                              # Unique identifier of the experiment.
+    domain_file: ""      # Path to the PDDL domain file.
+    problems_dir: ""                     # Folder containing the problem (.pddl) files
+    repeat: 1                                  # Number of times to repeat the execution
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
+    input_override:
+      plans_dir: null
+      event_log_csv: "Sepsis.csv"
+      event_log_xes: "Sepsis.xes"
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # phases execution
+    # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: false
+      run_cleaning: true
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    # Creates aggregations among user-specified columns
+    grounding:
+      csv_separator: ";"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+      output_prefix: "grounded_event_log"
+
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
+      aggregations:
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
+
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "aggr1"
+          columns: ["activity"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
+    compound:
+      csv_separator: ";"
+      
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      # cleaning method
+      method: "general"  
+
+      csv_separator: ","
+
+      # User-enabled/disabled options
+      options:
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "Case ID"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "Complete Timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "Activity"               # (To be modified) Column representing the activity in the event log
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
+    minerful:
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
+
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+      
+
+      csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.05
+      confidence: 1.0
+      coverage: 0.05
+      # Constraint pruning strategy
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      # DO NOT modify
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
+
+
+  - name: "road1"                              # Unique identifier of the experiment.
+    domain_file: ""      # Path to the PDDL domain file.
+    problems_dir: ""                     # Folder containing the problem (.pddl) files
+    repeat: 1                                  # Number of times to repeat the execution
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
+    input_override:
+      plans_dir: null
+      event_log_csv: "Road_Traffic_Fine_Management_Process.csv"
+      event_log_xes: "Road_Traffic_Fine_Management_Process.xes"
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # phases execution
+    # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: false
+      run_cleaning: true
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    # Creates aggregations among user-specified columns
+    grounding:
+      csv_separator: ";"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+      output_prefix: "grounded_event_log"
+
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
+      aggregations:
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
+
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "aggr1"
+          columns: ["activity"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
+    compound:
+      csv_separator: ";"
+      
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      # cleaning method
+      method: "general"  
+
+      csv_separator: ","
+
+      # User-enabled/disabled options
+      options:
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "Case ID"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "Complete Timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "Activity"               # (To be modified) Column representing the activity in the event log
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
+    minerful:
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
+
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+      
+
+      csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.07
+      confidence: 1.0
+      coverage: 0.07
+      # Constraint pruning strategy
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      # DO NOT modify
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
+
+
+  - name: "loan1"                              # Unique identifier of the experiment.
+    domain_file: ""      # Path to the PDDL domain file.
+    problems_dir: ""                     # Folder containing the problem (.pddl) files
+    repeat: 1                                  # Number of times to repeat the execution
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
+    input_override:
+      plans_dir: null
+      event_log_csv: "BPI_Challenge_2012.csv"
+      event_log_xes: "BPI_Challenge_2012.xes"
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # phases execution
+    # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: false
+      run_cleaning: true
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    # Creates aggregations among user-specified columns
+    grounding:
+      csv_separator: ";"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+      output_prefix: "grounded_event_log"
+
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
+      aggregations:
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
+
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "aggr1"
+          columns: ["activity"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
+    compound:
+      csv_separator: ";"
+      
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      # cleaning method
+      method: "general"  
+
+      csv_separator: ","
+
+      # User-enabled/disabled options
+      options:
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "Case ID"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "Complete Timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "Activity"               # (To be modified) Column representing the activity in the event log
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
+    minerful:
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
+
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+      
+
+      csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.07
+      confidence: 1.0
+      coverage: 0.07
+      # Constraint pruning strategy
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      # DO NOT modify
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
+
+
+
+  - name: "travel1"                              # Unique identifier of the experiment.
+    domain_file: ""      # Path to the PDDL domain file.
+    problems_dir: ""                     # Folder containing the problem (.pddl) files
+    repeat: 1                                  # Number of times to repeat the execution
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
+    input_override:
+      plans_dir: null
+      event_log_csv: "PermitLog.csv"
+      event_log_xes: "PermitLog.xes"
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # phases execution
+    # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: false
+      run_cleaning: true
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    # Creates aggregations among user-specified columns
+    grounding:
+      csv_separator: ";"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+      output_prefix: "grounded_event_log"
+
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
+      aggregations:
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
+
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "aggr1"
+          columns: ["activity"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
+    compound:
+      csv_separator: ";"
+      
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      # cleaning method
+      method: "general"  
+
+      csv_separator: ","
+
+      # User-enabled/disabled options
+      options:
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "Case ID"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "Complete Timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "Activity"               # (To be modified) Column representing the activity in the event log
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
+    minerful:
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
+
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+      
+
+      csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.082
+      confidence: 1.0
+      coverage: 0.082
+      # Constraint pruning strategy
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      # DO NOT modify
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
+
+
+
+  - name: "reimb1"                              # Unique identifier of the experiment.
+    domain_file: ""      # Path to the PDDL domain file.
+    problems_dir: ""                     # Folder containing the problem (.pddl) files
+    repeat: 1                                  # Number of times to repeat the execution
+    # --------------------------------
+    # INPUT OVERRIDE
+    # --------------------------------
+    # This section allows SKIPPING some pipeline phases by reusing already computed results.
+    #
+    # Rule:
+    # - if the value is a path → the phase is NOT recomputed and the specified file is used for subsequent phases.
+    # - if the value is null   → the phase is executed normally
+    #
+    # WARNING:
+    # - If a phase is disabled in `pipeline_options`, the input MUST be provided here
+    # - If a phase is enabled, any override will be IGNORED
+    input_override:
+      plans_dir: null
+      event_log_csv: "InternationalDeclarations.csv"
+      event_log_xes: "InternationalDeclarations.xes"
+      cleaned_csv: null
+      cleaned_xes: null
+      grounded_csv: null
+      grounded_xes: null
+      compound_csv: null
+      compound_xes: null
+
+
+    # --------------------------------
+    # phases execution
+    # --------------------------------
+    # true  → the phase is executed
+    # false → the phase is skipped
+    #
+    # RULE:
+    # If a phase is set to false, you must provide its input via `input_override`
+    #
+    # Example:
+    #   run_event_log: false
+    #   → you must specify event_log_csv / event_log_xes
+    pipeline_options:
+      run_create_plans: false
+      run_remove_duplicates: false
+      run_event_log: false
+      run_cleaning: true
+      run_grounding: true
+      run_compound: false
+      run_minerful: true
+      run_traj_constraint: true
+      run_reverse_mapping: true
+
+
+    # --------------------------------
+    # GROUNDING
+    # --------------------------------
+    # Creates aggregations among user-specified columns
+    grounding:
+      csv_separator: ";"
+      drop_original_columns: true               # Keep/remove original columns used for grounding
+      plan_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "cctivity"               # (To be modified) Column representing the activity in the event log
+      output_prefix: "grounded_event_log"
+
+      # 
+      # The value of name is used, together with output_prefix, to name the output file
+      # Columns indicates which columns to aggregate (can be more than two).
+      # Multiple aggregations can be generated.
+      aggregations:
+        #- name: "activity_objective"
+        #  columns: ["activity", "objective"]
+
+        #- name: "store_actor_objective"
+        #  columns: ["store", "actor","objective"]
+
+        - name: "aggr1"
+          columns: ["activity"]
+
+
+
+    # --------------------------------
+    # COMPOUND
+    # --------------------------------
+    # Merges consecutive logically related events
+    # EXAMPLE:
+    #   navigate A → B
+    #   navigate B → C
+    #   → navigate A → C
+    compound:
+      csv_separator: ";"
+      
+      case_column: "case_id"                    # (To be modified) Column representing the plan ID in the event log  
+      timestamp_column: "timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "activity"               # (To be modified) Column representing the activity in the event log
+
+      # Optional: List of column "bases" to be merged.
+      # Example: if you have waypoint_1, waypoint_2 and want to merge only those, write ["waypoint"].
+      # If left empty or commented out, the script will AUTOMATICALLY search for all numbered columns (col_1, col_2...)
+      columns: []  
+
+
+
+    # --------------------------------
+    # CLEANING
+    # --------------------------------
+    cleaning:
+      # cleaning method
+      method: "general"  
+
+      csv_separator: ","
+
+      # User-enabled/disabled options
+      options:
+        remove_empty_columns: true              # Remove completely empty columns
+        remove_redundant_columns: true          # Remove duplicate or semantically equivalent columns
+        remove_constant_columns: true           # Remove columns with the same value for all events
+
+      plan_column: "Case ID"                    # (To be modified) Column representing the plan ID in the event log
+      timestamp_column: "Complete Timestamp"             # (To be modified) Column representing the timestamp in the event log
+      activity_column: "Activity"               # (To be modified) Column representing the activity in the event log
+
+
+
+    # --------------------------------
+    # MINERFUL
+    # --------------------------------
+    # This phase extracts declarative (Declare) constraints from the event log.
+    minerful:
+      # Maximum memory assigned to the JVM running MINERful
+      # Increase if the log is large or very rich in attributes
+      xmx_memory: "8096m"                      
+
+      # 'input_file' and 'input_directory' are MUTUALLY EXCLUSIVE
+      # If both are empty → use the event log generated by the previous phase
+      input_file: ""                            # Optional. If a path is set, that file is used for constraint extraction
+      input_directory: ""                       # Optional. If a path is set, all files in the folder are used for constraint extraction
+
+      output_csv_suffix: "_minerful.csv"
+      output_json_suffix: "_minerful.json"
+      
+
+      csv_separator: ";"
+      # true  → use the attribute specified in classifier_keys
+      # false → use only the activity name (default)
+      use_classifier: false
+      classifier_name: "activityClassifier"
+      classifier_keys: "objective"
+
+      support: 0.05
+      confidence: 1.0
+      coverage: 0.05
+      # Constraint pruning strategy
+      pruning_strategy: "hierarchyconflictredundancy"
+
+      # DO NOT modify
+      minerful_jar: "MINERful/MINERful.jar"
+      minerful_lib: "MINERful/lib/*"
+
+
+    # --------------------------------
+    # TRAJECTORY CONSTRAINTS (TC)
+    # --------------------------------
+    trajectory_constraints:
+      # Suffix for the folder where the new PDDL problems will be saved
+      input_file: ""                             # optional
+      input_directory: ""                        # optional
+      output_folder_suffix: "_with_constraints"
+
+    # --------------------------------
+    # REVERSE MAPPING (TC -> Declare)
+    # --------------------------------
+    reverse_mapping:
+      # If this field is not null, it will be used the input_file
+      input_file: null
+      output_folder_suffix: "reverse_mapping"
 
 
 

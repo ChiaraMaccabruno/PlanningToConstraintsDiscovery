@@ -7,17 +7,30 @@ from pathlib import Path
 def clean_field(s):
     if not s:
         return ""
-    s = s.replace("[", "").replace("]", "").replace("'", "").strip()
+    s = s.replace("[", "").replace("]", "").replace("'", "").replace(" ", "_").strip()
     return s
 
 # Converts declarative templates from CSV into PAC 
 def map_constraint(template, activation, target):
-    A = clean_field(activation)
-    B = clean_field(target)
+    raw_A = clean_field(activation)
+    raw_B = clean_field(target)
+
+    A = raw_A if raw_A else raw_B
+    B = raw_B
 
     if not A: return []
-    binary_templates = ("Response", "Precedence", "Succession", "RespondedExistence", "CoExistence", "ChainResponse")
+    binary_templates = ("Response", "Precedence", "Succession", "ExclusiveChoice", "ChainResponse")
     if template in binary_templates and not B: return []
+
+    existence_match = re.match(r'Existence\((\d+)\)', template, re.IGNORECASE)
+    if existence_match:
+        n = int(existence_match.group(1))
+        if n > 1:
+            # Crea la sequenza A A A...
+            repeated_A = " ".join([A] * n)
+            return [f"(pattern {repeated_A})"]
+        else:
+            return [f"(sometime {A})"]
 
     # UNARY CONSTRAINTS
     # Event A must occur at least once in the process
@@ -25,7 +38,7 @@ def map_constraint(template, activation, target):
         return [f"(sometime {A})"]
 
     # Event A must occur at most once
-    if template == "AtMostOnce":
+    if template in ("AtMostOnce", "AtMost1"):
         return [f"(at-most-once {A})"]
 
     # Event A must occur exactly once
@@ -43,19 +56,22 @@ def map_constraint(template, activation, target):
 
     # b occurs only if preceded by a
     if template == "Precedence":
-        return [f"(sometime-before {A} {B})"] 
+        return [f"(sometime-before {B} {A})"] 
 
     # a occurs if and only if it is followed by b
     if template == "Succession":
         # Succession = Response + Precedence
-        return [f"(sometime-after {A} {B})", f"(sometime-before {A} {B})"]
+        return [f"(sometime-after {A} {B})", f"(sometime-before {B} {A})"]
 
     #if template == "RespondedExistence":
     #    return [f"(sometime-after {A} {B})"]
 
     #  If b occurs, then a occurs, and viceversa
-    if template == "CoExistence":
-        return [f"(sometime-after {A} {B})", f"(sometime-after {B} {A})"]
+    #if template == "CoExistence":
+    #    return [f"(sometime-after {A} {B})", f"(sometime-after {B} {A})"]
+
+    if template == "ExclusiveChoice":
+        return [f"(sometime (or {A} {B}))", f"(at-most-once (or {A} {B}))"]
 
     # Each time a occurs, then b occurs immediately afterwards
     if template == "ChainResponse":
@@ -86,12 +102,13 @@ def read_constraints_from_csv(csv_path):
             constraints = map_constraint(template_raw, activation_raw, target_raw)
             
             for con in constraints:
-                tc_list.append({
-                    "template": template_raw,
-                    "activation": activation_raw,
-                    "target": target_raw,
-                    "tc": con
-                })
+                if is_expressible(con):
+                    tc_list.append({
+                        "template": template_raw,
+                        "activation": activation_raw,
+                        "target": target_raw,
+                        "tc": con
+                    })
             
     return tc_list
 

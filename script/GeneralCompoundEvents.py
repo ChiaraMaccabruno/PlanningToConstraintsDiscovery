@@ -179,6 +179,7 @@ def compoundEvents(csvInput, csvOutput, xesOutput, compound_conf=None):
     try:
         df_xes = dataframe_utils.convert_timestamp_columns_in_df(df_xes)
         
+        # log_converter richiede esplicitamente quale colonna è il Case ID
         log = log_converter.apply(df_xes, parameters={
             log_converter.Variants.TO_EVENT_LOG.value.Parameters.CASE_ID_KEY: "case:concept:name"
         })

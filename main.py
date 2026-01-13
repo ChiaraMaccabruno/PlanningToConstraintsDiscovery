@@ -2,6 +2,7 @@ import os
 import time
 import yaml
 import shutil
+import csv
 from pathlib import Path
 
 from script.GeneralCreationPlan import createPlans
@@ -39,6 +40,7 @@ def file_exists_and_not_none(value):
 
 # ----------------- Pipeline -----------------
 def pipeline(config, exp, rep_index, base_output_dir):
+    timings = {}
     t0 = time.perf_counter()
 
     # Create output subdirectories for each stage of the process
@@ -59,27 +61,38 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
     # ----------------- PLAN GENERATION -----------------
     run_create_plans = pipeline_opts.get("run_create_plans", True)
-    if run_create_plans:
-        print("1) PLAN GENERATION")
-        start = time.perf_counter()
-        planning_conf = exp.get("planning", {})
-        createPlans(domain_file, 
-                    problems_dir, 
-                    plans_output_dir, 
-                    fast_downward_path=fd_path,
-                    planning_conf=planning_conf
-        )
-        print(f"Time for plan generation: {time.perf_counter() - start:.2f} sec")
-    elif file_exists_and_not_none(override.get("plans_dir")):
-        plans_output_dir = override.get("plans_dir")
-        print(f"Plan generation skipped; using override: {plans_output_dir}")
+    run_event_log = pipeline_opts.get("run_event_log", True)
+    if run_create_plans or run_event_log:
+        if run_create_plans:
+            print("1) PLAN GENERATION")
+            start = time.perf_counter()
+            planning_conf = exp.get("planning", {})
+            createPlans(domain_file, 
+                        problems_dir, 
+                        plans_output_dir, 
+                        fast_downward_path=fd_path,
+                        planning_conf=planning_conf
+            )
+            print(f"Time for plan generation: {time.perf_counter() - start:.2f} sec")
+            elapsed = time.perf_counter() - start
+            timings["plan_generation"] = elapsed
+        elif file_exists_and_not_none(override.get("plans_dir")):
+            plans_output_dir = override.get("plans_dir")
+            print(f"Plan generation skipped; using override: {plans_output_dir}")
+        else:
+            raise RuntimeError("No plans available to continue pipeline.")
     else:
-        raise RuntimeError("No plans available to continue pipeline.")
+        plans_output_dir = None
+        print("Plans not needed; skipping plan phase entirely.")
 
     # ----------------- DUPLICATE PLAN REMOVAL -----------------
     if pipeline_opts.get("run_remove_duplicates", False):
         print("1.1) DUPLICATE PLAN REMOVAL")
+        start = time.perf_counter()
         removeDuplicatePlans(plans_output_dir)
+        print(f"Time for duplicate removal: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["duplicate_removal"] = elapsed
     else:
         print("Duplicate removal skipped.")
 
@@ -98,6 +111,8 @@ def pipeline(config, exp, rep_index, base_output_dir):
                        event_xes,
                        eventlog_conf=eventlog_conf)
         print(f"Time for event log: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["event_log"] = elapsed
     elif file_exists_and_not_none(override.get("event_log_csv")):
         event_csv = override.get("event_log_csv")
         event_xes = override.get("event_log_xes")
@@ -115,6 +130,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
         start = time.perf_counter()
         cleaning_conf = exp.get("cleaning", {})
 
+
         puliziaEventLog(
             csvInput=event_csv,
             csvOutput=cleaned_csv,
@@ -122,6 +138,8 @@ def pipeline(config, exp, rep_index, base_output_dir):
             cleaning_conf=cleaning_conf
         )
         print(f"Time for cleaning: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["cleaning"] = elapsed
     elif file_exists_and_not_none(override.get("cleaned_csv")):
         cleaned_csv = override.get("cleaned_csv")
         cleaned_xes = override.get("cleaned_xes")
@@ -165,6 +183,8 @@ def pipeline(config, exp, rep_index, base_output_dir):
         print(f"Grounding generated {len(grounded_csv_list)} aggregations.")
 
         print(f"Time for grounding: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["grounding"] = elapsed
     elif file_exists_and_not_none(override.get("grounded_csv")):
         grounded_csv = override.get("grounded_csv")
         grounded_xes = override.get("grounded_xes")
@@ -196,6 +216,9 @@ def pipeline(config, exp, rep_index, base_output_dir):
             compound_csv_list.append(out_csv)
             compound_xes_list.append(out_xes)
 
+        print(f"Time for compound: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["compound"] = elapsed
         print(f"Compound generated for {len(compound_csv_list)} aggregations.")
     else:
         compound_csv_list = grounded_csv_list
@@ -293,6 +316,8 @@ def pipeline(config, exp, rep_index, base_output_dir):
             minerful_json.append(json_out)
 
         print(f"Time for MINERful: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["minerful"] = elapsed
 
     elif file_exists_and_not_none(override.get("minerful_dir")):
         minerful_dir = override.get("minerful_dir")
@@ -307,6 +332,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
     if run_tc:
         print("7) TRAJECTORY CONSTRAINTS")
+        start = time.perf_counter()
 
         explicit_file = tc_conf.get("input_file")
         explicit_dir  = tc_conf.get("input_directory")
@@ -341,6 +367,9 @@ def pipeline(config, exp, rep_index, base_output_dir):
                 pddl_dir=exp["problems_dir"],
                 output_dir=current_output_dir
             )
+        print(f"Time for trajectory constraints: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["trajectory_constraints"] = elapsed
 
     # ----------------- REVERSE MAPPING (NEW) -----------------
     rev_conf = exp.get("reverse_mapping", {})
@@ -348,6 +377,7 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
     if run_reverse:
         print("8) REVERSE MAPPING (TC -> Declare)")
+        start = time.perf_counter()
         
         explicit_file = rev_conf.get("input_file")
         reverse_output_dir = ensure_dir(os.path.join(base_output_dir, "reverse_mapping"))
@@ -369,6 +399,9 @@ def pipeline(config, exp, rep_index, base_output_dir):
                     tc_csv_path=tc_csv,
                     output_dir=reverse_output_dir
                 )
+        print(f"Time for reverse mapping: {time.perf_counter() - start:.2f} sec")
+        elapsed = time.perf_counter() - start
+        timings["reverse_mapping"] = elapsed
 
     
 
@@ -376,6 +409,15 @@ def pipeline(config, exp, rep_index, base_output_dir):
 
 
     print(f"Pipeline completed for run {rep_index}. Results in: {base_output_dir}\n")
+
+    timing_file = os.path.join(base_output_dir, "timings.csv")
+
+    with open(timing_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["phase", "time_seconds"])
+        for phase, t in timings.items():
+            writer.writerow([phase, t])
+            
     return {
         "plans_dir": plans_output_dir,
         "event_csv": event_csv,
