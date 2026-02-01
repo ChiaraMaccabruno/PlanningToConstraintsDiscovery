@@ -1,6 +1,4 @@
-# T
-
-# T – Planning & Process Mining Pipeline
+# PlanningToConstraintsDiscovery
 
 This repository contains an **integrated pipeline** for:
 
