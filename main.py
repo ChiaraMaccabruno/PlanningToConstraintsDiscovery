@@ -13,8 +13,8 @@ from script.GeneralGrounding import aggregateColumns
 from script.GeneralCompoundEvents import compoundEvents
 from script.GeneralExtraction import extraction
 
-from TC import apply_trajectory_constraints
-from ReverseTC import apply_reverse_mapping
+from script.TC import apply_trajectory_constraints
+from script.ReverseTC import apply_reverse_mapping
 
 # ----------------- Utility -----------------
 

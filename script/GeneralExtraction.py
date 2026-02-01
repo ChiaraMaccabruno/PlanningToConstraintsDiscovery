@@ -67,20 +67,20 @@ def extraction(
         raise FileNotFoundError(f"[Extraction ERROR] Input CSV not found: {input_csv}")
 
     # Configuration Setup
-    sep = minerful_conf.get("csv_separator", ";")
-    use_classifier = minerful_conf.get("use_classifier", False)
-    classifier_name = minerful_conf.get("classifier_name", "activityClassifier")
-    classifier_keys = minerful_conf.get("classifier_keys", "objective")
+    sep = minerful_conf["csv_separator"]
+    use_classifier = minerful_conf["use_classifier"]
+    classifier_name = minerful_conf["classifier_name"]
+    classifier_keys = minerful_conf["classifier_keys"]
 
-    support = minerful_conf.get("support", 0.06)
-    confidence = minerful_conf.get("confidence", 1.0)
-    coverage = minerful_conf.get("coverage", 0.06)
-    pruning = minerful_conf.get("pruning_strategy", "hierarchyconflictredundancy")
+    support = minerful_conf["support"]
+    confidence = minerful_conf["confidence"]
+    coverage = minerful_conf["coverage"]
+    pruning = minerful_conf["pruning_strategy"]
 
-    xmx_memory = minerful_conf.get("xmx_memory", "4g")
+    xmx_memory = minerful_conf["xmx_memory"]
 
-    jar_path = minerful_conf.get("minerful_jar")
-    lib_path = minerful_conf.get("minerful_lib")
+    jar_path = minerful_conf["minerful_jar"]
+    lib_path = minerful_conf["minerful_lib"]
 
     output_dir = minerful_conf.get("output_dir", "minerful")
     os.makedirs(output_dir, exist_ok=True)
